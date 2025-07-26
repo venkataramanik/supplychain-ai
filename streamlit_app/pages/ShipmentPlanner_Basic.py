@@ -1,244 +1,218 @@
 import streamlit as st
 import pandas as pd
 import numpy as np
+import pydeck as pdk
+import altair as alt
 
-# Try Altair for a nicer chart; fall back to st.bar_chart if not installed
-try:
-    import altair as alt
-    HAS_ALTAIR = True
-except Exception:
-    HAS_ALTAIR = False
+st.set_page_config(page_title="Shipment Planner – Parcel vs LTL", layout="wide")
+st.title("🚚 Shipment Planner – Parcel vs LTL with Consolidation")
 
-st.set_page_config(page_title="Rating & Mode Selection (with Consolidation)", layout="wide")
+# ----------------- Helper Data -----------------
+city_coords = {
+    "Atlanta, GA": [33.749, -84.388],
+    "Dallas, TX": [32.7767, -96.797],
+    "Chicago, IL": [41.8781, -87.6298],
+    "Denver, CO": [39.7392, -104.9903],
+    "Seattle, WA": [47.6062, -122.3321],
+    "Boston, MA": [42.3601, -71.0589],
+    "Miami, FL": [25.7617, -80.1918],
+    "San Jose, CA": [37.3382, -121.8863],
+    "Phoenix, AZ": [33.4484, -112.0740],
+    "Nashville, TN": [36.1627, -86.7816],
+    "New York, NY": [40.7128, -74.0060],
+    "Houston, TX": [29.7604, -95.3698],
+    "Los Angeles, CA": [34.0522, -118.2437]
+}
 
-# --------- Navigation (optional) ----------
-st.page_link("pages/TransportationSuite.py", label="⬅ Back to Transportation Suite")
-st.page_link("Home.py", label="🏠 Back to Home")
-
-# --------------- Title --------------------
-st.title("🚚 Rating & Mode Selection — with LTL Consolidation")
-st.markdown("""
-This pilot demonstrates a **more realistic rating engine**:
-- **Parcel** rated with **zone multipliers** (distance → zone).  
-- **LTL** rated with **weight breaks / freight class factors**.  
-- **Optimization**: choose **Parcel vs LTL** for each shipment.  
-- **Consolidation**: group shipments **on the same O/D lane** to ship as **one LTL load**, and compare costs.
-""")
-
-# ----------------- Data -------------------
+# Generate dataset
 np.random.seed(42)
-origins = ["Atlanta, GA", "Dallas, TX", "Chicago, IL", "Denver, CO", "Seattle, WA",
-           "Boston, MA", "Miami, FL", "San Jose, CA", "Phoenix, AZ", "Nashville, TN"]
-destinations = ["New York, NY", "Houston, TX", "Los Angeles, CA", "Chicago, IL", "Atlanta, GA",
-                "Miami, FL", "Seattle, WA", "Boston, MA", "Dallas, TX", "Denver, CO"]
+origins = np.random.choice(list(city_coords.keys()), 20)
+destinations = np.random.choice(list(city_coords.keys()), 20)
+weights = np.concatenate([np.random.randint(20, 150, 10), np.random.randint(200, 800, 10)])
+distances = np.random.randint(100, 2500, 20)
 
 shipments = pd.DataFrame({
-    "ShipmentID": [f"SHP-{i:03d}" for i in range(1, 51)],
-    "Origin": np.random.choice(origins, 50),
-    "Destination": np.random.choice(destinations, 50),
-    "Distance (miles)": np.random.randint(100, 3000, 50),
-    "Weight (lbs)": np.random.randint(50, 1000, 50)
+    "ShipmentID": [f"SHP-{i:03d}" for i in range(1, 21)],
+    "Origin": origins,
+    "Destination": destinations,
+    "Distance (miles)": distances,
+    "Weight (lbs)": weights
 })
 
-st.subheader("📦 Shipments Data (50 rows)")
+def get_nmfc_class(weight):
+    if weight <= 150:
+        return "70"
+    elif weight <= 500:
+        return "55"
+    return "50"
+
+shipments["NMFC Class"] = shipments["Weight (lbs)"].apply(get_nmfc_class)
+
+st.subheader("📦 Shipment Data (20 rows)")
 st.dataframe(shipments, use_container_width=True)
 
-# ----------------- Rating Logic -------------------
+# ----------------- Rating Functions -----------------
+def parcel_zone_multiplier(distance):
+    if distance <= 150:
+        return 1.0
+    elif distance <= 600:
+        return 1.1
+    elif distance <= 1200:
+        return 1.3
+    return 1.5
 
-def parcel_zone_multiplier(distance_miles: float) -> float:
-    """Basic zone-like multiplier by distance (toy example)."""
-    if distance_miles <= 150:
-        return 1.00  # Zone 2-ish
-    elif distance_miles <= 600:
-        return 1.10  # Zone 3
-    elif distance_miles <= 1200:
-        return 1.30  # Zone 4
-    else:
-        return 1.50  # Zone 5+
+def ltl_class_factor(nmfc_class):
+    return {"50": 0.9, "55": 1.0, "70": 1.2}.get(nmfc_class, 1.0)
 
-def ltl_class_factor(weight_lbs: float) -> float:
-    """
-    Approximate class factor by weight break (toy mapping).
-    Lower factor => cheaper rate (heavier shipments → lower classes).
-    """
-    if weight_lbs < 500:
-        return 1.00  # Class ~70
-    elif weight_lbs < 1000:
-        return 0.90  # Class ~55
-    else:
-        return 0.85  # Class ~50
+def rate_parcel(weight, distance):
+    if weight > 150:
+        return None
+    return (8 + 0.06 * weight) * parcel_zone_multiplier(distance)
 
-def rate_parcel(weight_lbs: float, distance_miles: float) -> float:
-    """
-    Parcel cost model:
-      Cost = (Base + Cost_per_Lb * Weight) * ZoneMultiplier
-    No per-mile term here (we're “burying” distance effect in zone multiplier).
-    """
-    base = 8.0
-    cost_per_lb = 0.06
-    zone_mult = parcel_zone_multiplier(distance_miles)
-    return (base + cost_per_lb * weight_lbs) * zone_mult
+def rate_ltl(weight, distance, nmfc_class):
+    return 35 + (0.42 * distance * ltl_class_factor(nmfc_class))
 
-def rate_ltl(weight_lbs: float, distance_miles: float) -> float:
-    """
-    LTL cost model:
-      Cost = Base + (Cost_per_Mile * Distance * ClassFactor)
-    """
-    base = 35.0
-    cost_per_mile = 0.42
-    cf = ltl_class_factor(weight_lbs)
-    return base + (cost_per_mile * distance_miles * cf)
+# ----------------- Solve -----------------
+if st.button("Solve Optimization"):
+    results = []
+    for _, r in shipments.iterrows():
+        parcel_cost = rate_parcel(r["Weight (lbs)"], r["Distance (miles)"])
+        ltl_cost = rate_ltl(r["Weight (lbs)"], r["Distance (miles)"], r["NMFC Class"])
+        chosen_mode, chosen_cost = None, None
 
-def solve_per_shipment(ship_df: pd.DataFrame) -> pd.DataFrame:
-    """Compute Parcel vs LTL for each shipment and pick the cheaper mode."""
-    rows = []
-    for _, r in ship_df.iterrows():
-        dist = r["Distance (miles)"]
-        wt = r["Weight (lbs)"]
-
-        parcel_cost = rate_parcel(wt, dist)
-        ltl_cost = rate_ltl(wt, dist)
-
-        if parcel_cost <= ltl_cost:
-            mode = "Parcel"
-            cheapest = parcel_cost
+        if parcel_cost is not None and parcel_cost < ltl_cost:
+            chosen_mode = "Parcel"
+            chosen_cost = parcel_cost
         else:
-            mode = "LTL"
-            cheapest = ltl_cost
+            chosen_mode = "LTL"
+            chosen_cost = ltl_cost
 
-        rows.append({
+        results.append({
             "ShipmentID": r["ShipmentID"],
             "Origin": r["Origin"],
             "Destination": r["Destination"],
-            "Distance (miles)": dist,
-            "Weight (lbs)": wt,
-            "Parcel Cost ($)": round(parcel_cost, 2),
+            "Parcel Cost ($)": round(parcel_cost, 2) if parcel_cost else None,
             "LTL Cost ($)": round(ltl_cost, 2),
-            "Cheapest Mode": mode,
-            "Chosen Cost ($)": round(cheapest, 2)
+            "Chosen Mode": chosen_mode,
+            "Chosen Cost ($)": round(chosen_cost, 2)
         })
-    return pd.DataFrame(rows)
+    results_df = pd.DataFrame(results)
+    st.subheader("🔍 Optimized Shipment Modes")
+    st.dataframe(results_df, use_container_width=True)
 
-def solve_with_consolidation(ship_df: pd.DataFrame) -> pd.DataFrame:
-    """
-    Consolidate by (Origin, Destination) lane:
-      - Sum weights per lane
-      - Use the *mean* distance for that lane (toy assumption)
-      - Rate it as a single LTL load
-      Parcel is not consolidated.
-    """
+    # ----------------- Consolidation -----------------
     consolidated = (
-        ship_df
-        .groupby(["Origin", "Destination"], as_index=False)
-        .agg(
-            total_weight=("Weight (lbs)", "sum"),
-            avg_distance=("Distance (miles)", "mean"),
-            shipments=("ShipmentID", "count")
-        )
+        shipments.groupby(["Origin", "Destination"], as_index=False)
+        .agg({"Weight (lbs)": "sum", "Distance (miles)": "mean"})
+    )
+    consolidated["NMFC Class"] = consolidated["Weight (lbs)"].apply(get_nmfc_class)
+    consolidated["LTL Cost ($)"] = consolidated.apply(
+        lambda r: rate_ltl(r["Weight (lbs)"], r["Distance (miles)"], r["NMFC Class"]), axis=1
     )
 
-    consolidated["Consolidated LTL Cost ($)"] = consolidated.apply(
-        lambda r: round(rate_ltl(r["total_weight"], r["avg_distance"]), 2),
-        axis=1
-    )
-
-    return consolidated
-
-# --------------- Solve Button -----------------
-if st.button("Solve (Rate & Optimize + Consolidation)"):
-    st.subheader("🔍 Per-Shipment Rating (Parcel vs LTL)")
-    per_shipment = solve_per_shipment(shipments)
-    st.dataframe(per_shipment, use_container_width=True)
-
-    # KPI: total cost without consolidation
-    total_no_consol = per_shipment["Chosen Cost ($)"].sum()
-
-    st.subheader("📦 Lane Consolidation as LTL")
-    consolidated = solve_with_consolidation(shipments)
+    st.subheader("📦 LTL Consolidation Results")
     st.dataframe(consolidated, use_container_width=True)
 
-    total_consol = consolidated["Consolidated LTL Cost ($)"].sum()
+    # ----------------- KPIs -----------------
+    total_initial = shipments.apply(
+        lambda r: rate_ltl(r["Weight (lbs)"], r["Distance (miles)"], get_nmfc_class(r["Weight (lbs)"])),
+        axis=1
+    ).sum()
+    total_optimized = results_df["Chosen Cost ($)"].sum()
+    total_consolidated = consolidated["LTL Cost ($)"].sum()
 
-    # KPI Block
     col1, col2, col3 = st.columns(3)
-    with col1:
-        st.metric("Total Cost (per-shipment optimized)", f"${total_no_consol:,.2f}")
-    with col2:
-        st.metric("Total Cost (LTL with consolidation)", f"${total_consol:,.2f}")
-    with col3:
-        savings = total_no_consol - total_consol
-        pct = savings / total_no_consol * 100 if total_no_consol > 0 else 0
-        st.metric("Savings from Consolidation", f"${savings:,.2f}", f"{pct:.2f}%")
+    col1.metric("Initial Cost (All LTL)", f"${total_initial:,.2f}")
+    col2.metric("Optimized Mix", f"${total_optimized:,.2f}", f"Saved {total_initial - total_optimized:,.2f}")
+    col3.metric("After Consolidation", f"${total_consolidated:,.2f}", f"Saved {total_optimized - total_consolidated:,.2f}")
 
-    # -------------- Mode Mix Chart --------------
-    mode_mix = per_shipment["Cheapest Mode"].value_counts().reset_index()
-    mode_mix.columns = ["Mode", "Shipments"]
+    # ----------------- Charts -----------------
+    st.subheader("📊 Cost Comparison")
+    cost_data = pd.DataFrame({
+        "Scenario": ["Initial (All LTL)", "Optimized Mix", "After Consolidation"],
+        "Total Cost ($)": [total_initial, total_optimized, total_consolidated]
+    })
+    cost_chart = alt.Chart(cost_data).mark_bar().encode(
+        x="Scenario",
+        y="Total Cost ($)",
+        color="Scenario",
+        tooltip=["Scenario", "Total Cost ($)"]
+    ).properties(width=500, height=300)
+    st.altair_chart(cost_chart, use_container_width=True)
 
-    st.subheader("📊 Mode Mix (Chosen per Shipment)")
-    if HAS_ALTAIR:
-        import altair as alt
-        chart = (
-            alt.Chart(mode_mix)
-            .mark_bar()
-            .encode(
-                x=alt.X("Mode:N", sort="-y"),
-                y=alt.Y("Shipments:Q"),
-                color="Mode:N",
-                tooltip=["Mode", "Shipments"]
-            )
-            .properties(width=400, height=300)
-        )
-        st.altair_chart(chart, use_container_width=True)
-    else:
-        st.bar_chart(mode_mix.set_index("Mode"))
+    # ----------------- Maps -----------------
+    def get_routes_df(df, color):
+        data = []
+        for _, r in df.iterrows():
+            data.append({
+                "from_lat": city_coords[r["Origin"]][0],
+                "from_lon": city_coords[r["Origin"]][1],
+                "to_lat": city_coords[r["Destination"]][0],
+                "to_lon": city_coords[r["Destination"]][1],
+                "color": color
+            })
+        return pd.DataFrame(data)
 
-# ----------------- Explanation -----------------
-st.markdown("## 📝 How This Works")
+    st.subheader("🗺 Maps – Before and After")
+    tab1, tab2, tab3 = st.tabs(["As Is (All LTL)", "Optimized Mix", "After Consolidation"])
+
+    with tab1:
+        routes1 = get_routes_df(shipments, [150, 150, 150])
+        st.pydeck_chart(pdk.Deck(
+            layers=[
+                pdk.Layer(
+                    "ArcLayer",
+                    data=routes1,
+                    get_source_position=["from_lon", "from_lat"],
+                    get_target_position=["to_lon", "to_lat"],
+                    get_width=2,
+                    get_tilt=15,
+                    get_source_color="color",
+                    get_target_color="color",
+                    pickable=True
+                )
+            ],
+            initial_view_state=pdk.ViewState(latitude=39, longitude=-98, zoom=3, pitch=50)
+        ))
+
+    with tab2:
+        routes2_parcel = get_routes_df(results_df[results_df["Chosen Mode"] == "Parcel"], [0, 0, 255])
+        routes2_ltl = get_routes_df(results_df[results_df["Chosen Mode"] == "LTL"], [255, 128, 0])
+        st.pydeck_chart(pdk.Deck(
+            layers=[
+                pdk.Layer("ArcLayer", data=routes2_parcel, get_source_position=["from_lon", "from_lat"],
+                          get_target_position=["to_lon", "to_lat"], get_width=2, get_source_color="color", get_target_color="color"),
+                pdk.Layer("ArcLayer", data=routes2_ltl, get_source_position=["from_lon", "from_lat"],
+                          get_target_position=["to_lon", "to_lat"], get_width=2, get_source_color="color", get_target_color="color")
+            ],
+            initial_view_state=pdk.ViewState(latitude=39, longitude=-98, zoom=3, pitch=50)
+        ))
+
+    with tab3:
+        routes3 = get_routes_df(consolidated, [255, 0, 0])
+        st.pydeck_chart(pdk.Deck(
+            layers=[
+                pdk.Layer("ArcLayer", data=routes3, get_source_position=["from_lon", "from_lat"],
+                          get_target_position=["to_lon", "to_lat"], get_width=2, get_source_color="color", get_target_color="color")
+            ],
+            initial_view_state=pdk.ViewState(latitude=39, longitude=-98, zoom=3, pitch=50)
+        ))
+
+# ----------------- Business Context & Key Insights -----------------
+st.markdown("## 📖 Business Context & Key Insights")
 st.markdown("""
-**Business framing:**  
-We simulate 50 shipments, compute **Parcel vs LTL** cost for each, then **optionally consolidate** LTL by grouping
-shipments on the same **Origin–Destination lane**. Consolidation often unlocks **lower LTL class factors and better per-mile economics**.
+- **Parcel vs LTL Trade-offs:**  
+  Parcel shipments are cost-effective for lighter loads (≤150 lbs), while LTL carriers use **freight classes** and weight breaks for pricing heavier loads. This demo reflects that logic — some shipments automatically go Parcel, others go LTL.
 
-**Parcel (Zone-Based) Logic**  
-We mimic parcel zones by converting distance into a **zone multiplier** (e.g., Zone 2 ≈ 1.0, Zone 5 ≈ 1.5).  
-Formula (toy):  
-`Cost = (Base + Cost_per_Lb * Weight) * ZoneMultiplier`
+- **Optimization Strategy:**  
+  First, we pick the **cheapest mode per shipment** (Parcel vs LTL). Then we **consolidate shipments** on the same Origin-Destination lane, which reduces cost by leveraging economies of scale.
 
-**LTL (Freight Class / Weight Breaks) Logic**  
-We mimic **NMFC class** dynamics by using a **class factor** that **drops as weight increases**  
-(heavier consolidated loads → cheaper per-mile).  
-Formula (toy):  
-`Cost = Base + (Cost_per_Mile * Distance * ClassFactor)`
+- **Savings Visualization:**  
+  The three maps show **cost evolution**:  
+  1. **All LTL (baseline)** – every shipment moves individually by LTL.  
+  2. **Optimized Mix** – Parcel and LTL are chosen dynamically to minimize cost.  
+  3. **After Consolidation** – Shipments with the same lanes are grouped, creating bigger loads and lowering per-mile costs.
 
-**Optimization strategy:**  
-- **Without consolidation:** For every shipment, we pick **min(Parcel, LTL)**.  
-- **With consolidation:** We group shipments by `(Origin, Destination)` and **rate the entire group as a single LTL load**.  
-  Parcel is not consolidated (real world: you *can* partially, but we keep it simple here).
-
-**KPIs shown:**  
-- **Total cost without consolidation** (best per shipment).  
-- **Total cost with consolidation** (LTL per lane).  
-- **Savings %** from consolidation.
-
----
-
-### Role of Python
-This prototype uses:
-- **pandas** for fast data transforms and group-bys.
-- **NumPy** to generate realistic random test data.
-- **Streamlit** to build a production-like UI in minutes.
-- **Altair** (or Streamlit native charts) to visualize mode mix & costs.
-
-**Why Python for Supply Chain?**  
-Python’s **optimization and OR ecosystem** (e.g., **OR-Tools, PuLP, Pyomo**) plus **ML stacks** (scikit-learn, XGBoost)
-make it ideal for **blending optimization + AI** — exactly what modern transportation platforms do.
-
----
-
-### Where this can go next
-- True **zone table lookups** (ZIP-to-zone matrices).  
-- **Dimensional weight (DIM)** for parcel.  
-- Real LTL rating using **class, weight breaks, lane-based tariffs**.  
-- **Carrier-specific rules & APIs**.  
-- **Reinforcement Learning** / **ML** to recommend the **best carrier & mode** using historical performance (SLA, cost, on-time %).  
+- **Key Takeaway:**  
+  Even this simple model shows **how proper mode selection and lane consolidation** can reduce total transportation spend. In real-world TMS systems, these optimizations are enhanced by **carrier contracts, dimensional weight rules, service levels, and live API rates.**
 """)
