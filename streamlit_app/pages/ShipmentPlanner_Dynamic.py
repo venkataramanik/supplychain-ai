@@ -1,9 +1,15 @@
 import streamlit as st
 
-# --- PAGE CONFIG ---
-st.set_page_config(page_title="Dynamic Re-Routing (Real-Time)", layout="wide")
-# Navigation link to go back
-st.page_link("../TransportationSuite.py", label="⬅ Back to Transportation Suite")
+st.set_page_config(page_title="Dynamic Re-Routing", layout="wide")
+
+# Navigation
+st.page_link("pages/TransportationSuite.py", label="⬅ Back to Transportation Suite")
+st.page_link("Home.py", label="🏠 Back to Home")
+
+# Image
+st.image("https://upload.wikimedia.org/wikipedia/commons/5/59/Map_icon.png",
+         caption="Dynamic re-routing and real-time optimization", use_container_width=True)
+
 
 
 # --- TITLE ---
