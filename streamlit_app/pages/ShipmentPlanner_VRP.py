@@ -10,7 +10,7 @@ import streamlit as st
 from ortools.constraint_solver import pywrapcp, routing_enums_pb2
 
 st.set_page_config(page_title="VRP — Multi‑Vehicle Route Optimization", layout="wide")
-st.title("🚐 Pilot 2 — Vehicle Routing Problem (CVRP)")
+st.title("🚐 Vehicle Routing Problem")
 
 # ---------------------------------------------------------
 # Sidebar Controls
