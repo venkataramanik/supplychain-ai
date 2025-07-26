@@ -71,7 +71,7 @@ customers_df = pd.DataFrame({
     "Lon": [c[1] for c in customers_coord],
     "Demand": demands
 })
-st.subheader("📦 Customers")
+st.subheader("📦 Selected Customers (Randomized)")
 st.dataframe(customers_df, use_container_width=True)
 
 # ---------------------------------------------------------
@@ -173,6 +173,21 @@ c4.metric("Distance reduction vs baseline", f"{baseline_distance - total_distanc
           f"{(baseline_distance - total_distance)/baseline_distance:.1%}")
 st.markdown(f"**Estimated cost savings:** ${cost_savings:,.0f} (at ${cost_per_mile}/mile)")
 
+# Distance Comparison Chart
+st.subheader("📊 Before vs Optimized Distance")
+distance_df = pd.DataFrame({
+    "Scenario": ["Naive (Single Tour)", "Optimized VRP"],
+    "Miles": [baseline_distance, total_distance]
+})
+st.altair_chart(
+    alt.Chart(distance_df).mark_bar().encode(
+        x="Scenario:N",
+        y="Miles:Q",
+        color="Scenario:N"
+    ).properties(width=400, height=300),
+    use_container_width=True
+)
+
 # ---------------------------------------------------------
 # Folium Map
 # ---------------------------------------------------------
@@ -207,24 +222,29 @@ st.markdown("""
 ## 📖 Business Context & Highlights
 
 **Problem Statement:**  
-A company must deliver goods to multiple customers using a limited fleet. The challenge is to minimize total miles (or cost) while respecting vehicle capacity constraints.
+Every day, companies like UPS, FedEx, and Amazon face a **Vehicle Routing Problem (VRP)**:  
+How do we deliver packages to multiple locations using a limited fleet while minimizing **fuel cost, miles driven, and delivery time**?
 
 **Baseline Explanation:**  
-The "baseline miles" shown is a naive single-route plan — not optimized, but helps illustrate savings.
+The "baseline miles" is a naive single-route plan, visiting every city in sequence and returning to the depot. This is not optimized but shows how much savings true optimization can deliver.
 
 **Key KPIs:**  
-- Total optimized miles and vehicles used.  
-- Distance and cost savings vs naive plan.  
-- Vehicle capacity utilization.
+- **Total optimized miles** and **vehicles used**.  
+- **Distance and cost savings vs naive plan**.  
+- **Fleet capacity utilization** (how full the trucks are).
+
+**Fun Fact:**  
+UPS saved **10 million gallons of fuel per year** by optimizing routes and eliminating unnecessary left turns — a famous real-world VRP success story!
 
 **Tech Stack & Tools:**  
-- **Python & Pandas** for data manipulation.  
-- **Google OR-Tools** for VRP solving.  
-- **Folium** for realistic map visualization.  
-- **Streamlit** for instant UI and dashboards.
+- **Python & Pandas** — data manipulation.  
+- **Google OR-Tools** — industry-grade solver for VRP and TSP.  
+- **Folium** — interactive, road-style map visualization.  
+- **Streamlit** — fast web apps and dashboards.
 
 **Next Steps:**  
-- Add time windows (VRPTW) and SLA adherence.  
-- Include heterogeneous fleets with variable costs.  
-- Integrate real cost models (fuel, driver hours, tolls).
+- Add **time windows (VRPTW)** and SLA adherence.  
+- Include **heterogeneous fleets** (different vehicle types and costs).  
+- Integrate **real cost models** (fuel, driver hours, tolls).  
+- Extend to **multi-depot and cross-dock scenarios**.
 """)
