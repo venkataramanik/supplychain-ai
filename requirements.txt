@@ -9,3 +9,5 @@ scikit-learn
 matplotlib
 pydeck
 altair
+streamlit-folium
+folium
