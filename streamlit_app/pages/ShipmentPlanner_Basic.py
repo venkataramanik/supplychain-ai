@@ -1,8 +1,9 @@
 import streamlit as st
 import pandas as pd
 import numpy as np
-import plotly.graph_objects as go
 import altair as alt
+import folium
+from streamlit.components.v1 import html
 import random
 
 st.set_page_config(page_title="Shipment Planner – Load Optimization", layout="wide")
@@ -164,31 +165,17 @@ def scenario_3_cross_mode(ship_df, scen2_df):
             final_rows.extend(scen2_lane.to_dict(orient="records"))
     return pd.DataFrame(final_rows)
 
-# ----------------- Plotly Map -----------------
-def render_map_plotly(loads_df):
-    fig = go.Figure()
+# ----------------- Folium Map -----------------
+def render_map_folium(loads_df):
+    m = folium.Map(location=[39, -98], zoom_start=4)
     for _, row in loads_df.iterrows():
-        lat_start, lon_start = CITY_COORDS[row['Origin']]
-        lat_end, lon_end = CITY_COORDS[row['Destination']]
+        start_lat, start_lon = CITY_COORDS[row['Origin']]
+        end_lat, end_lon = CITY_COORDS[row['Destination']]
         color = 'blue' if row['Mode'] == 'Parcel' else 'orange'
-        fig.add_trace(go.Scattergeo(
-            locationmode='USA-states',
-            lon=[lon_start, lon_end],
-            lat=[lat_start, lat_end],
-            mode='lines+markers',
-            line=dict(width=3, color=color),
-            marker=dict(size=6, color=color),
-            hoverinfo='text',
-            text=f"{row['Origin']} → {row['Destination']} ({row['Mode']})"
-        ))
-    fig.update_layout(
-        geo=dict(scope='usa', projection_type='albers usa', showland=True,
-                 landcolor='rgb(245, 245, 245)', subunitcolor='rgb(217, 217, 217)',
-                 countrycolor='rgb(217, 217, 217)'),
-        margin=dict(l=0, r=0, t=0, b=0),
-        height=500
-    )
-    st.plotly_chart(fig, use_container_width=True)
+        folium.Marker([start_lat, start_lon], popup=row['Origin']).add_to(m)
+        folium.Marker([end_lat, end_lon], popup=row['Destination']).add_to(m)
+        folium.PolyLine([[start_lat, start_lon], [end_lat, end_lon]], color=color, weight=3).add_to(m)
+    html(m._repr_html_(), height=400)
 
 # ----------------- Run -----------------
 if st.button("Run Optimization"):
@@ -234,11 +221,11 @@ if st.button("Run Optimization"):
     st.subheader("🗺 Load Maps")
     tab1, tab2, tab3 = st.tabs(["Before", "Mode-Consolidated", "Cross-Mode"])
     with tab1:
-        render_map_plotly(s1)
+        render_map_folium(s1)
     with tab2:
-        render_map_plotly(s2)
+        render_map_folium(s2)
     with tab3:
-        render_map_plotly(s3)
+        render_map_folium(s3)
 
     st.subheader("📋 Load Details")
     st.write("**Scenario 1: Before Optimization**")
@@ -265,7 +252,7 @@ st.markdown("""
 - **Python** for data & optimization logic.
 - **Pandas** for load-building and cost calculations.
 - **Altair** for cost/load bar charts.
-- **Plotly** for interactive maps.
+- **Folium** for interactive maps.
 - **Streamlit** for instant UI and deployment.
 
 ### **Next Steps**
