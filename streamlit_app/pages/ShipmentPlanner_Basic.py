@@ -187,18 +187,18 @@ def render_map(loads_df, mode_color):
     labels = cities_df_from_loads(loads_df)
     st.pydeck_chart(pdk.Deck(
         layers=[
-            pdk.Layer("ArcLayer", data=routes,
+            pdk.Layer("LineLayer", data=routes,
                       get_source_position=["from_lon", "from_lat"],
                       get_target_position=["to_lon", "to_lat"],
-                      get_width=3,
-                      get_source_color="color",
-                      get_target_color="color"),
+                      get_width=4,
+                      get_color="color"),
             pdk.Layer("ScatterplotLayer", data=labels,
-                      get_position='[lon, lat]', get_radius=60000, get_fill_color=[0, 0, 0, 80]),
+                      get_position='[lon, lat]', get_radius=80000, get_fill_color=[0, 0, 0, 120]),
             pdk.Layer("TextLayer", data=labels,
-                      get_position='[lon, lat]', get_text='city', get_size=14, get_color=[0, 0, 0])
+                      get_position='[lon, lat]', get_text='city', get_size=16, get_color=[20, 20, 20])
         ],
-        initial_view_state=pdk.ViewState(latitude=39, longitude=-98, zoom=4, pitch=20),
+        initial_view_state=pdk.ViewState(latitude=39, longitude=-98, zoom=3.8, pitch=0),
+        map_style="mapbox://styles/mapbox/light-v10",
         height=360
     ))
 
@@ -215,13 +215,21 @@ if st.button("Run Optimization"):
     cost1, cost2, cost3 = s1["Cost ($)"].sum(), s2["Cost ($)"].sum(), s3["Cost ($)"].sum()
     loads1, loads2, loads3 = len(s1), len(s2), len(s3)
 
+    # KPI with savings
     st.subheader("📈 Scenario KPIs")
     c1, c2, c3 = st.columns(3)
     c1.metric("Before", f"${cost1:,.2f}", f"Loads: {loads1}")
-    c2.metric("Mode-Consolidated", f"${cost2:,.2f}", f"Loads: {loads2}")
-    c3.metric("Cross-Mode", f"${cost3:,.2f}", f"Loads: {loads3}")
+    c2.metric("Mode-Consolidated", f"${cost2:,.2f}", f"Loads: {loads2} | ↓ ${(cost1 - cost2):,.2f}")
+    c3.metric("Cross-Mode", f"${cost3:,.2f}", f"Loads: {loads3} | ↓ ${(cost1 - cost3):,.2f}")
+
+    st.markdown(f"""
+    ### 💰 **Savings Summary**
+    - From **Before → Mode-Consolidated**: **${cost1 - cost2:,.2f} saved** ({(cost1 - cost2)/cost1:.1%}).
+    - From **Before → Cross-Mode**: **${cost1 - cost3:,.2f} saved** ({(cost1 - cost3)/cost1:.1%}).
+    """)
 
     # Charts
+    st.subheader("📊 Cost & Load Comparison")
     cost_df = pd.DataFrame({
         "Scenario": ["Before", "Mode-Consolidated", "Cross-Mode"],
         "Total Cost ($)": [cost1, cost2, cost3],
@@ -246,6 +254,37 @@ if st.button("Run Optimization"):
         render_map(s3, {"LTL": [255, 0, 0]})
 
     st.subheader("📋 Load Details")
+    st.write("**Scenario 1: Before Optimization**")
     st.dataframe(s1, use_container_width=True)
+    st.write("**Scenario 2: Mode-Consolidated**")
     st.dataframe(s2, use_container_width=True)
+    st.write("**Scenario 3: Cross-Mode**")
     st.dataframe(s3, use_container_width=True)
+
+# ----------------- Business Context -----------------
+st.markdown("""
+## 📖 Business Context & Highlights
+
+### **Why This Problem Matters**
+- Logistics companies spend millions on **Parcel vs LTL** decisions.
+- **Consolidation** and **mode optimization** directly reduce cost and improve service levels.
+- This pilot shows how **Python + Open-Source tools** can prototype a real solution in minutes.
+
+### **KPIs Improved**
+- **Total Cost Reduction** via consolidation and cross-mode conversion.
+- **Fewer Loads**, meaning better truck utilization and fewer touches.
+
+### **Tech Stack**
+- **Python** for data & optimization logic.
+- **Pandas** for load-building and cost calculations.
+- **Altair** for cost/load bar charts.
+- **PyDeck** for interactive maps.
+- **Streamlit** for instant UI and deployment.
+
+### **Next Steps**
+- Add **truck capacity & cube constraints**.
+- Include **SLA & time window constraints**.
+- Use **OR-Tools (CP-SAT)** for full **VRP (Vehicle Routing Problem)**.
+- Integrate **dynamic rating APIs** for real tariffs.
+- Add **forecast-driven what-if scenarios** (using ML models like XGBoost for ETA & cost predictions).
+""")
