@@ -1,9 +1,15 @@
 import streamlit as st
 
-# --- PAGE CONFIG ---
 st.set_page_config(page_title="Cross-Dock & Multi-Echelon Routing", layout="wide")
-# Navigation link to go back
-st.page_link("../TransportationSuite.py", label="⬅ Back to Transportation Suite")
+
+# Navigation
+st.page_link("pages/TransportationSuite.py", label="⬅ Back to Transportation Suite")
+st.page_link("Home.py", label="🏠 Back to Home")
+
+# Image
+st.image("https://upload.wikimedia.org/wikipedia/commons/e/e4/Warehouse_icon.png",
+         caption="Cross-docking and multi-echelon logistics", use_container_width=True)
+
 
 
 # --- TITLE ---
