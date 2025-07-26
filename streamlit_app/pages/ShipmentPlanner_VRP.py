@@ -1,9 +1,15 @@
 import streamlit as st
 
-# --- PAGE CONFIG ---
-st.set_page_config(page_title="VRP + Multi-Stop Routing", layout="wide")
-# Navigation link to go back
-st.page_link("../TransportationSuite.py", label="⬅ Back to Transportation Suite")
+st.set_page_config(page_title="Multi-Stop Routing (VRP)", layout="wide")
+
+# Navigation
+st.page_link("pages/TransportationSuite.py", label="⬅ Back to Transportation Suite")
+st.page_link("Home.py", label="🏠 Back to Home")
+
+# Image
+st.image("https://upload.wikimedia.org/wikipedia/commons/9/97/Traveling_Salesman.svg",
+         caption="Example of a multi-stop route optimization (VRP)", use_container_width=True)
+
 
 
 # --- TITLE ---
