@@ -10,11 +10,6 @@ st.page_link("Home.py", label="🏠 Back to Home")
 
 
 
-st.image(
-    "https://upload.wikimedia.org/wikipedia/commons/2/21/I40TruckCTI.JPG",
-    caption="Parcel vs LTL Shipping Modes",
-    width=700
-)
 
 
 
