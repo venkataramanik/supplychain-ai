@@ -4,10 +4,11 @@ from typing import List, Tuple
 
 import pandas as pd
 import numpy as np
-import plotly.graph_objects as go
 import altair as alt
 import streamlit as st
 from ortools.constraint_solver import pywrapcp, routing_enums_pb2
+import folium
+from streamlit_folium import st_folium
 
 st.set_page_config(page_title="VRP — Multi‑Vehicle Route Optimization", layout="wide")
 st.title("🚐 Vehicle Routing Problem (CVRP)")
@@ -17,7 +18,7 @@ st.title("🚐 Vehicle Routing Problem (CVRP)")
 # ---------------------------------------------------------
 with st.sidebar:
     st.header("⚙️ Scenario Controls")
-    num_customers = st.slider("Number of customers", 5, 10, 6, 1)  # limited to city list
+    num_customers = st.slider("Number of customers", 5, 10, 6, 1)
     num_vehicles = st.slider("Number of vehicles", 1, 5, 2, 1)
     vehicle_capacity = st.slider("Vehicle capacity (units)", 50, 500, 150, 10)
     seed = st.number_input("Random seed (reproducibility)", value=42, step=1)
@@ -45,13 +46,11 @@ US_CITIES = [
 # Generate Customer Data
 # ---------------------------------------------------------
 def generate_customers(n: int) -> List[Tuple[str, float, float]]:
-    """Randomly select n unique cities from the list."""
     return random.sample(US_CITIES, n)
 
 def haversine_miles(lat1, lon1, lat2, lon2) -> float:
-    R = 3958.8  # Earth radius in miles
-    phi1 = math.radians(lat1)
-    phi2 = math.radians(lat2)
+    R = 3958.8
+    phi1, phi2 = math.radians(lat1), math.radians(lat2)
     dphi = math.radians(lat2 - lat1)
     dlambda = math.radians(lon2 - lon1)
     a = (math.sin(dphi / 2.0) ** 2 +
@@ -59,7 +58,7 @@ def haversine_miles(lat1, lon1, lat2, lon2) -> float:
     return 2 * R * math.asin(math.sqrt(a))
 
 depot_city = "Kansas City"
-depot_coord = (39.0997, -94.5786)  # Kansas City, MO
+depot_coord = (39.0997, -94.5786)
 customers_selected = generate_customers(num_customers)
 customer_names = [c[0] for c in customers_selected]
 customers_coord = [(c[1], c[2]) for c in customers_selected]
@@ -72,7 +71,6 @@ customers_df = pd.DataFrame({
     "Lon": [c[1] for c in customers_coord],
     "Demand": demands
 })
-
 st.subheader("📦 Customers")
 st.dataframe(customers_df, use_container_width=True)
 
@@ -147,7 +145,6 @@ if not solution:
 
 routes = solution["routes"]
 total_distance = solution["total_distance"]
-veh_loads = solution["vehicle_loads"]
 
 # ---------------------------------------------------------
 # KPIs
@@ -174,79 +171,34 @@ c2.metric("Total optimized miles", f"{total_distance:,.1f}")
 c3.metric("Baseline miles (naive chain)", f"{baseline_distance:,.1f}")
 c4.metric("Distance reduction vs baseline", f"{baseline_distance - total_distance:,.1f} mi",
           f"{(baseline_distance - total_distance)/baseline_distance:.1%}")
-
 st.markdown(f"**Estimated cost savings:** ${cost_savings:,.0f} (at ${cost_per_mile}/mile)")
 
-# Distance Comparison Chart
-st.subheader("📊 Before vs Optimized Distance")
-distance_df = pd.DataFrame({
-    "Scenario": ["Naive (Single Tour)", "Optimized VRP"],
-    "Miles": [baseline_distance, total_distance]
-})
-st.altair_chart(
-    alt.Chart(distance_df).mark_bar().encode(
-        x="Scenario:N",
-        y="Miles:Q",
-        color="Scenario:N"
-    ).properties(width=400, height=300),
-    use_container_width=True
-)
+# ---------------------------------------------------------
+# Folium Map
+# ---------------------------------------------------------
+def render_folium_map(routes, depot, customers, demands, customer_names):
+    m = folium.Map(location=depot, zoom_start=4)
+    folium.Marker(location=depot, popup=f"Depot: {depot_city}", icon=folium.Icon(color="black")).add_to(m)
 
-# ---------------------------------------------------------
-# Route Map
-# ---------------------------------------------------------
-def render_vrp_map(routes, depot, customers, demands, customer_names):
-    colors = [
-        "#1f77b4", "#ff7f0e", "#2ca02c", "#d62728",
-        "#9467bd", "#8c564b", "#e377c2", "#7f7f7f"
-    ]
-    fig = go.Figure()
+    colors = ["blue", "green", "red", "purple", "orange"]
     all_nodes = [depot] + customers
 
-    # Depot
-    fig.add_trace(go.Scattergeo(
-        lon=[depot[1]], lat=[depot[0]],
-        mode="markers", marker=dict(size=12, color="black", symbol="star"),
-        name="Depot", text=[f"Depot: {depot_city}"]
-    ))
+    # Add customer markers
+    for i, c in enumerate(customers):
+        folium.Marker(location=c,
+                      popup=f"{customer_names[i]} (Demand: {demands[i]})",
+                      icon=folium.Icon(color="gray", icon="info-sign")).add_to(m)
 
-    # Customers
-    fig.add_trace(go.Scattergeo(
-        lon=[c[1] for c in customers],
-        lat=[c[0] for c in customers],
-        mode="markers", marker=dict(size=6, color="gray"),
-        text=[f"{customer_names[i]} | demand={demands[i]}" for i in range(len(customers))],
-        hoverinfo="text", name="Customers"
-    ))
-
-    # Routes
+    # Add routes
     for v, route in enumerate(routes):
-        color = colors[v % len(colors)]
-        lat_route = [all_nodes[n][0] for n in route]
-        lon_route = [all_nodes[n][1] for n in route]
-        fig.add_trace(go.Scattergeo(
-            lon=lon_route, lat=lat_route,
-            mode="lines+markers",
-            line=dict(width=3, color=color),
-            marker=dict(size=5, color=color),
-            name=f"Vehicle {v+1}"
-        ))
+        route_coords = [all_nodes[n] for n in route]
+        folium.PolyLine(route_coords, color=colors[v % len(colors)], weight=4,
+                        tooltip=f"Vehicle {v+1} Route").add_to(m)
+    return m
 
-    fig.update_layout(
-        geo=dict(
-            scope="north america",
-            projection_type="albers usa",
-            showland=True,
-            landcolor="rgb(245, 245, 245)"
-        ),
-        margin=dict(l=0, r=0, t=0, b=0),
-        height=600,
-        legend=dict(orientation="h", yanchor="bottom", y=0.01, xanchor="right", x=0.99)
-    )
-    st.plotly_chart(fig, use_container_width=True)
-
-st.subheader("🗺 Optimized Vehicle Routes")
-render_vrp_map(routes, depot_coord, customers_coord, demands, customer_names)
+st.subheader("🗺 Optimized Vehicle Routes (Real Map)")
+m = render_folium_map(routes, depot_coord, customers_coord, demands, customer_names)
+st_folium(m, width=800, height=500)
 
 # ---------------------------------------------------------
 # Business Context
@@ -258,7 +210,7 @@ st.markdown("""
 A company must deliver goods to multiple customers using a limited fleet. The challenge is to minimize total miles (or cost) while respecting vehicle capacity constraints.
 
 **Baseline Explanation:**  
-The "baseline miles" shown is a naive single-route plan (visiting customers in sequence) — it’s **not** an optimized benchmark, but a simple reference to illustrate savings.
+The "baseline miles" shown is a naive single-route plan — not optimized, but helps illustrate savings.
 
 **Key KPIs:**  
 - Total optimized miles and vehicles used.  
@@ -268,13 +220,11 @@ The "baseline miles" shown is a naive single-route plan (visiting customers in s
 **Tech Stack & Tools:**  
 - **Python & Pandas** for data manipulation.  
 - **Google OR-Tools** for VRP solving.  
-- **Plotly** for map and route visualization.  
+- **Folium** for realistic map visualization.  
 - **Streamlit** for instant UI and dashboards.
 
 **Next Steps:**  
 - Add time windows (VRPTW) and SLA adherence.  
 - Include heterogeneous fleets with variable costs.  
-- Integrate real cost models (fuel, driver hours, tolls).  
-- Use ML to forecast travel times and demand.  
-- Extend to cross-docking and multi-depot scenarios.
+- Integrate real cost models (fuel, driver hours, tolls).
 """)
