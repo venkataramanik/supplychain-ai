@@ -7,8 +7,12 @@ st.page_link("pages/TransportationSuite.py", label="⬅ Back to Transportation S
 st.page_link("Home.py", label="🏠 Back to Home")
 
 # Image
-st.image("https://upload.wikimedia.org/wikipedia/commons/3/3a/UPS_Truck_in_Houston.jpg",
-         caption="Parcel vs LTL Shipping Modes", use_container_width=True)
+st.image(
+    "https://upload.wikimedia.org/wikipedia/commons/2/21/I40TruckCTI.JPG",
+    caption="Parcel vs LTL Shipping Modes",
+    width=700  # Adjust size as needed (e.g., 500-800)
+)
+
 
 
 
