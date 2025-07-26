@@ -16,7 +16,8 @@ st.divider()
 
 # --- LINK TO TRANSPORTATION SUITE ---
 st.header("Transportation Optimization Suite")
-st.page_link("TransportationSuite.py", label="🚛 Go to Transportation Optimization Suite")
+st.page_link("pages/TransportationSuite.py", label="🚛 Go to Transportation Optimization Suite")
+
 
 st.divider()
 
