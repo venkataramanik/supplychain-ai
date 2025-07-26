@@ -94,12 +94,18 @@ st.markdown("""
 4. **Analytics:** We aggregate total cost by mode and visualize it using a bar chart.  
 5. **Custom Scenario:** Users can test "what-if" costs for a single shipment.
 
-### **Why It Matters**
-- **Parcel vs. LTL Trade-off:** LTL is cheaper for heavier shipments over longer distances due to economies of scale.  
-- **Real-World Relevance:** Logistics companies like UPS and FedEx use similar logic, enhanced with **zone-based pricing, dimensional weight, and service-level guarantees**.  
-- **Scalability:** The logic can easily scale to 10,000+ shipments with vectorized calculations or Spark/PySpark pipelines.
+### **Role of Python**
+This prototype is built in **Python**, leveraging:
+- **pandas** for handling and transforming shipment datasets.
+- **NumPy** for generating synthetic data and numerical calculations.
+- **Streamlit** for building an interactive dashboard in minutes.
+- **Matplotlib** for quick visual insights.
+
+**Why Python?**  
+Python is the de-facto language for data science and optimization because of its **rich ecosystem of libraries** (like OR-Tools, PuLP, Pyomo) that make solving complex logistics problems straightforward.
 """)
 
 st.info("""
-**Interesting Note:** This model could be extended with **machine learning** to predict the *best carrier* based on historical cost, SLA performance, and transit time, or even integrate with **real-time carrier APIs**.
+**Interesting Note:** This model can be extended with **machine learning** to predict the *best carrier*
+based on historical cost, SLA performance, and transit time, or even integrate with **real-time carrier APIs**.
 """)
