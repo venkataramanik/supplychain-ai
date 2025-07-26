@@ -1,7 +1,7 @@
 import streamlit as st
 import pandas as pd
 import numpy as np
-import pydeck as pdk
+import plotly.graph_objects as go
 import altair as alt
 import random
 
@@ -164,43 +164,31 @@ def scenario_3_cross_mode(ship_df, scen2_df):
             final_rows.extend(scen2_lane.to_dict(orient="records"))
     return pd.DataFrame(final_rows)
 
-# ----------------- Maps -----------------
-def cities_df_from_loads(loads):
-    cs = set(loads["Origin"].tolist() + loads["Destination"].tolist())
-    return pd.DataFrame([{"city": c, "lat": CITY_COORDS[c][0], "lon": CITY_COORDS[c][1]} for c in cs])
-
-def to_routes_df(loads_df, mode_color):
-    rows = []
-    for _, r in loads_df.iterrows():
-        color = mode_color.get(r["Mode"], [200, 200, 200])
-        rows.append({
-            "from_lat": CITY_COORDS[r["Origin"]][0],
-            "from_lon": CITY_COORDS[r["Origin"]][1],
-            "to_lat": CITY_COORDS[r["Destination"]][0],
-            "to_lon": CITY_COORDS[r["Destination"]][1],
-            "color": color,
-        })
-    return pd.DataFrame(rows)
-
-def render_map(loads_df, mode_color):
-    routes = to_routes_df(loads_df, mode_color)
-    labels = cities_df_from_loads(loads_df)
-    st.pydeck_chart(pdk.Deck(
-        layers=[
-            pdk.Layer("LineLayer", data=routes,
-                      get_source_position=["from_lon", "from_lat"],
-                      get_target_position=["to_lon", "to_lat"],
-                      get_width=4,
-                      get_color="color"),
-            pdk.Layer("ScatterplotLayer", data=labels,
-                      get_position='[lon, lat]', get_radius=80000, get_fill_color=[0, 0, 0, 120]),
-            pdk.Layer("TextLayer", data=labels,
-                      get_position='[lon, lat]', get_text='city', get_size=16, get_color=[20, 20, 20])
-        ],
-        initial_view_state=pdk.ViewState(latitude=39, longitude=-98, zoom=3.8, pitch=0),
-        map_style="mapbox://styles/mapbox/light-v10",
-        height=360
-    ))
+# ----------------- Plotly Map -----------------
+def render_map_plotly(loads_df):
+    fig = go.Figure()
+    for _, row in loads_df.iterrows():
+        lat_start, lon_start = CITY_COORDS[row['Origin']]
+        lat_end, lon_end = CITY_COORDS[row['Destination']]
+        color = 'blue' if row['Mode'] == 'Parcel' else 'orange'
+        fig.add_trace(go.Scattergeo(
+            locationmode='USA-states',
+            lon=[lon_start, lon_end],
+            lat=[lat_start, lat_end],
+            mode='lines+markers',
+            line=dict(width=3, color=color),
+            marker=dict(size=6, color=color),
+            hoverinfo='text',
+            text=f"{row['Origin']} → {row['Destination']} ({row['Mode']})"
+        ))
+    fig.update_layout(
+        geo=dict(scope='usa', projection_type='albers usa', showland=True,
+                 landcolor='rgb(245, 245, 245)', subunitcolor='rgb(217, 217, 217)',
+                 countrycolor='rgb(217, 217, 217)'),
+        margin=dict(l=0, r=0, t=0, b=0),
+        height=500
+    )
+    st.plotly_chart(fig, use_container_width=True)
 
 # ----------------- Run -----------------
 if st.button("Run Optimization"):
@@ -215,7 +203,6 @@ if st.button("Run Optimization"):
     cost1, cost2, cost3 = s1["Cost ($)"].sum(), s2["Cost ($)"].sum(), s3["Cost ($)"].sum()
     loads1, loads2, loads3 = len(s1), len(s2), len(s3)
 
-    # KPI with savings
     st.subheader("📈 Scenario KPIs")
     c1, c2, c3 = st.columns(3)
     c1.metric("Before", f"${cost1:,.2f}", f"Loads: {loads1}")
@@ -247,11 +234,11 @@ if st.button("Run Optimization"):
     st.subheader("🗺 Load Maps")
     tab1, tab2, tab3 = st.tabs(["Before", "Mode-Consolidated", "Cross-Mode"])
     with tab1:
-        render_map(s1, {"Parcel": [0, 102, 255], "LTL": [255, 128, 0]})
+        render_map_plotly(s1)
     with tab2:
-        render_map(s2, {"Parcel": [0, 102, 255], "LTL": [255, 128, 0]})
+        render_map_plotly(s2)
     with tab3:
-        render_map(s3, {"LTL": [255, 0, 0]})
+        render_map_plotly(s3)
 
     st.subheader("📋 Load Details")
     st.write("**Scenario 1: Before Optimization**")
@@ -278,7 +265,7 @@ st.markdown("""
 - **Python** for data & optimization logic.
 - **Pandas** for load-building and cost calculations.
 - **Altair** for cost/load bar charts.
-- **PyDeck** for interactive maps.
+- **Plotly** for interactive maps.
 - **Streamlit** for instant UI and deployment.
 
 ### **Next Steps**
