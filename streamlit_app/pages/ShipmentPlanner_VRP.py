@@ -21,10 +21,7 @@ with st.sidebar:
     num_customers = st.slider("Number of customers", 5, 10, 6, 1)
     num_vehicles = st.slider("Number of vehicles", 1, 5, 2, 1)
     vehicle_capacity = st.slider("Vehicle capacity (units)", 50, 500, 150, 10)
-    seed = st.number_input("Random seed (reproducibility)", value=42, step=1)
-
-random.seed(seed)
-np.random.seed(seed)
+    randomize = st.checkbox("Randomize cities on every run", value=True)
 
 # ---------------------------------------------------------
 # US City Coordinates
@@ -48,21 +45,13 @@ US_CITIES = [
 def generate_customers(n: int) -> List[Tuple[str, float, float]]:
     return random.sample(US_CITIES, n)
 
-def haversine_miles(lat1, lon1, lat2, lon2) -> float:
-    R = 3958.8
-    phi1, phi2 = math.radians(lat1), math.radians(lat2)
-    dphi = math.radians(lat2 - lat1)
-    dlambda = math.radians(lon2 - lon1)
-    a = (math.sin(dphi / 2.0) ** 2 +
-         math.cos(phi1) * math.cos(phi2) * math.sin(dlambda / 2.0) ** 2)
-    return 2 * R * math.asin(math.sqrt(a))
-
-depot_city = "Kansas City"
-depot_coord = (39.0997, -94.5786)
 customers_selected = generate_customers(num_customers)
 customer_names = [c[0] for c in customers_selected]
 customers_coord = [(c[1], c[2]) for c in customers_selected]
 demands = np.random.randint(5, 31, size=num_customers)
+
+depot_city = "Kansas City"
+depot_coord = (39.0997, -94.5786)
 
 customers_df = pd.DataFrame({
     "CustomerID": [f"C{i+1:03d}" for i in range(num_customers)],
@@ -75,8 +64,17 @@ st.subheader("📦 Selected Customers (Randomized)")
 st.dataframe(customers_df, use_container_width=True)
 
 # ---------------------------------------------------------
-# OR-Tools VRP Solver
+# Distance Calculation
 # ---------------------------------------------------------
+def haversine_miles(lat1, lon1, lat2, lon2) -> float:
+    R = 3958.8
+    phi1, phi2 = math.radians(lat1), math.radians(lat2)
+    dphi = math.radians(lat2 - lat1)
+    dlambda = math.radians(lon2 - lon1)
+    a = (math.sin(dphi / 2.0) ** 2 +
+         math.cos(phi1) * math.cos(phi2) * math.sin(dlambda / 2.0) ** 2)
+    return 2 * R * math.asin(math.sqrt(a))
+
 def build_distance_matrix(coords, depot):
     all_nodes = [depot] + coords
     n = len(all_nodes)
@@ -87,6 +85,9 @@ def build_distance_matrix(coords, depot):
                 dist_matrix[i][j] = haversine_miles(*all_nodes[i], *all_nodes[j])
     return dist_matrix
 
+# ---------------------------------------------------------
+# OR-Tools VRP Solver
+# ---------------------------------------------------------
 def solve_cvrp(dist_matrix, demands, capacity, num_vehicles):
     manager = pywrapcp.RoutingIndexManager(len(dist_matrix), num_vehicles, 0)
     routing = pywrapcp.RoutingModel(manager)
@@ -173,21 +174,6 @@ c4.metric("Distance reduction vs baseline", f"{baseline_distance - total_distanc
           f"{(baseline_distance - total_distance)/baseline_distance:.1%}")
 st.markdown(f"**Estimated cost savings:** ${cost_savings:,.0f} (at ${cost_per_mile}/mile)")
 
-# Distance Comparison Chart
-st.subheader("📊 Before vs Optimized Distance")
-distance_df = pd.DataFrame({
-    "Scenario": ["Naive (Single Tour)", "Optimized VRP"],
-    "Miles": [baseline_distance, total_distance]
-})
-st.altair_chart(
-    alt.Chart(distance_df).mark_bar().encode(
-        x="Scenario:N",
-        y="Miles:Q",
-        color="Scenario:N"
-    ).properties(width=400, height=300),
-    use_container_width=True
-)
-
 # ---------------------------------------------------------
 # Folium Map
 # ---------------------------------------------------------
@@ -198,20 +184,18 @@ def render_folium_map(routes, depot, customers, demands, customer_names):
     colors = ["blue", "green", "red", "purple", "orange"]
     all_nodes = [depot] + customers
 
-    # Add customer markers
     for i, c in enumerate(customers):
         folium.Marker(location=c,
                       popup=f"{customer_names[i]} (Demand: {demands[i]})",
                       icon=folium.Icon(color="gray", icon="info-sign")).add_to(m)
 
-    # Add routes
     for v, route in enumerate(routes):
         route_coords = [all_nodes[n] for n in route]
         folium.PolyLine(route_coords, color=colors[v % len(colors)], weight=4,
                         tooltip=f"Vehicle {v+1} Route").add_to(m)
     return m
 
-st.subheader("🗺 Optimized Vehicle Routes (Real Map)")
+st.subheader("🗺 Optimized Vehicle Routes")
 m = render_folium_map(routes, depot_coord, customers_coord, demands, customer_names)
 st_folium(m, width=800, height=500)
 
@@ -222,7 +206,7 @@ st.markdown("""
 ## 📖 Business Context & Highlights
 
 **Problem Statement:**  
-Every day, companies like UPS, FedEx, and Amazon face a **Vehicle Routing Problem (VRP)**:  
+Companies like UPS, FedEx, and Amazon face a **Vehicle Routing Problem (VRP)** daily:  
 How do we deliver packages to multiple locations using a limited fleet while minimizing **fuel cost, miles driven, and delivery time**?
 
 **Baseline Explanation:**  
