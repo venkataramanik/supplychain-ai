@@ -165,17 +165,45 @@ def scenario_3_cross_mode(ship_df, scen2_df):
             final_rows.extend(scen2_lane.to_dict(orient="records"))
     return pd.DataFrame(final_rows)
 
-# ----------------- Folium Map -----------------
-def render_map_folium(loads_df):
-    m = folium.Map(location=[39, -98], zoom_start=4)
-    for _, row in loads_df.iterrows():
-        start_lat, start_lon = CITY_COORDS[row['Origin']]
-        end_lat, end_lon = CITY_COORDS[row['Destination']]
-        color = 'blue' if row['Mode'] == 'Parcel' else 'orange'
-        folium.Marker([start_lat, start_lon], popup=row['Origin']).add_to(m)
-        folium.Marker([end_lat, end_lon], popup=row['Destination']).add_to(m)
-        folium.PolyLine([[start_lat, start_lon], [end_lat, end_lon]], color=color, weight=3).add_to(m)
-    html(m._repr_html_(), height=400)
+# ----------------- Folium Scenario Map -----------------
+def render_map_by_scenario(loads_df, scenario_name):
+    m = folium.Map(location=[39, -98], zoom_start=4, tiles='CartoDB Positron')
+
+    if scenario_name == "Before":
+        # Show all shipments individually
+        for _, row in loads_df.iterrows():
+            start_lat, start_lon = CITY_COORDS[row['Origin']]
+            end_lat, end_lon = CITY_COORDS[row['Destination']]
+            color = 'blue' if row['Mode'] == 'Parcel' else 'orange'
+            folium.PolyLine(
+                locations=[[start_lat, start_lon], [end_lat, end_lon]],
+                color=color,
+                weight=3,
+                tooltip=f"{row['Origin']} → {row['Destination']} | {row['Mode']} | {row['Total Weight (lbs)']} lbs"
+            ).add_to(m)
+    else:
+        # Aggregate by lane for consolidated scenarios
+        lane_groups = loads_df.groupby(['Origin', 'Destination', 'Mode']).agg(
+            total_weight=('Total Weight (lbs)', 'sum'),
+            total_cost=('Cost ($)', 'sum')
+        ).reset_index()
+
+        for _, lane in lane_groups.iterrows():
+            start_lat, start_lon = CITY_COORDS[lane['Origin']]
+            end_lat, end_lon = CITY_COORDS[lane['Destination']]
+            color = 'blue' if lane['Mode'] == 'Parcel' else 'orange'
+            folium.PolyLine(
+                locations=[[start_lat, start_lon], [end_lat, end_lon]],
+                color=color,
+                weight=4 + (lane['total_weight'] / 200),  # line thickness
+                tooltip=f"{lane['Origin']} → {lane['Destination']} | {lane['Mode']} | {lane['total_weight']} lbs | ${lane['total_cost']}"
+            ).add_to(m)
+
+    # Add city markers
+    for city, coords in CITY_COORDS.items():
+        folium.CircleMarker(location=coords, radius=4, color="black", fill=True, fill_opacity=0.7, popup=city).add_to(m)
+
+    html(m._repr_html_(), height=450)
 
 # ----------------- Run -----------------
 if st.button("Run Optimization"):
@@ -221,11 +249,11 @@ if st.button("Run Optimization"):
     st.subheader("🗺 Load Maps")
     tab1, tab2, tab3 = st.tabs(["Before", "Mode-Consolidated", "Cross-Mode"])
     with tab1:
-        render_map_folium(s1)
+        render_map_by_scenario(s1, "Before")
     with tab2:
-        render_map_folium(s2)
+        render_map_by_scenario(s2, "Mode-Consolidated")
     with tab3:
-        render_map_folium(s3)
+        render_map_by_scenario(s3, "Cross-Mode")
 
     st.subheader("📋 Load Details")
     st.write("**Scenario 1: Before Optimization**")
