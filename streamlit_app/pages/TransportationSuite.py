@@ -3,6 +3,9 @@ import streamlit as st
 st.set_page_config(page_title="Transportation Optimization Suite", layout="wide")
 
 st.title("🚛 Transportation Optimization Suite")
+import os
+st.write("Files in images folder:", os.listdir("images"))
+
 st.image("images/Supply-chain-shipping-modes.jpg", caption="Example of a transportation optimization network.", use_container_width=True)
 
 st.markdown("""
