@@ -39,7 +39,26 @@ US_CITIES = [
 ]
 
 # ---------------------------------------------------------
-# Utility Functions
+# Random Customer Generation
+# ---------------------------------------------------------
+def generate_customers(n: int):
+    selected = random.sample(US_CITIES, n)
+    names = [c[0] for c in selected]
+    coords = [(c[1], c[2]) for c in selected]
+    demands = np.random.randint(5, 31, size=n)
+    return names, coords, demands
+
+# Initialize or regenerate customers
+if st.button("🔄 Regenerate Cities"):
+    st.session_state.cities = generate_customers(num_customers)
+
+if "cities" not in st.session_state or len(st.session_state.cities[0]) != num_customers:
+    st.session_state.cities = generate_customers(num_customers)
+
+customer_names, customers_coord, demands = st.session_state.cities
+
+# ---------------------------------------------------------
+# Distance Calculation
 # ---------------------------------------------------------
 def haversine_miles(lat1, lon1, lat2, lon2) -> float:
     R = 3958.8
@@ -49,18 +68,6 @@ def haversine_miles(lat1, lon1, lat2, lon2) -> float:
     a = (math.sin(dphi / 2.0) ** 2 +
          math.cos(phi1) * math.cos(phi2) * math.sin(dlambda / 2.0) ** 2)
     return 2 * R * math.asin(math.sqrt(a))
-
-# ---------------------------------------------------------
-# Cache Customers and Distance Matrix
-# ---------------------------------------------------------
-@st.cache_data
-def generate_customers(n: int):
-    """Randomly select n customers and return names, coords, and demands."""
-    selected = random.sample(US_CITIES, n)
-    names = [c[0] for c in selected]
-    coords = [(c[1], c[2]) for c in selected]
-    demands = np.random.randint(5, 31, size=n)
-    return names, coords, demands
 
 @st.cache_data
 def build_distance_matrix(coords, depot):
@@ -73,9 +80,11 @@ def build_distance_matrix(coords, depot):
                 dist_matrix[i][j] = haversine_miles(*all_nodes[i], *all_nodes[j])
     return dist_matrix
 
+# ---------------------------------------------------------
+# OR-Tools VRP Solver
+# ---------------------------------------------------------
 @st.cache_data
 def solve_vrp(dist_matrix, demands, capacity, num_vehicles):
-    """Solve VRP with OR-Tools."""
     manager = pywrapcp.RoutingIndexManager(len(dist_matrix), num_vehicles, 0)
     routing = pywrapcp.RoutingModel(manager)
 
@@ -126,7 +135,6 @@ def solve_vrp(dist_matrix, demands, capacity, num_vehicles):
 # ---------------------------------------------------------
 depot_city = "Kansas City"
 depot_coord = (39.0997, -94.5786)
-customer_names, customers_coord, demands = generate_customers(num_customers)
 dist_matrix = build_distance_matrix(customers_coord, depot_coord)
 solution = solve_vrp(dist_matrix, demands, vehicle_capacity, num_vehicles)
 
@@ -144,7 +152,7 @@ customers_df = pd.DataFrame({
     "Lon": [c[1] for c in customers_coord],
     "Demand": demands
 })
-st.subheader("📦 Selected Customers (Randomized)")
+st.subheader("📦 Selected Customers")
 st.dataframe(customers_df, use_container_width=True)
 
 # ---------------------------------------------------------
