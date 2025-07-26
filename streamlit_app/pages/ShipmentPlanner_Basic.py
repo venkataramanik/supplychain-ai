@@ -4,8 +4,8 @@ import numpy as np
 import pydeck as pdk
 import altair as alt
 
-st.set_page_config(page_title="Shipment Planner – Parcel vs LTL", layout="wide")
-st.title("🚚 Shipment Planner — Parcel vs LTL with Consolidation")
+st.set_page_config(page_title="Shipment Planner — Parcel vs LTL", layout="wide")
+st.title("🚚 Shipment Planner — Parcel vs LTL (Consolidation & Reassignment)")
 
 # ----------------- Navigation (optional) -----------------
 st.page_link("pages/TransportationSuite.py", label="⬅ Back to Transportation Suite")
@@ -28,7 +28,7 @@ city_coords = {
     "Los Angeles, CA": [34.0522, -118.2437]
 }
 
-# ----------------- Generate Dataset (20 rows) -----------------
+# ----------------- Generate Dataset -----------------
 np.random.seed(42)
 origins = np.random.choice(list(city_coords.keys()), 20)
 destinations = np.random.choice(list(city_coords.keys()), 20)
@@ -49,10 +49,10 @@ shipments = pd.DataFrame({
 
 def get_nmfc_class(weight):
     if weight <= 150:
-        return "70"   # higher class, more expensive
+        return "70"
     elif weight <= 500:
         return "55"
-    return "50"       # heavier -> lower class factor
+    return "50"
 
 shipments["NMFC Class"] = shipments["Weight (lbs)"].apply(get_nmfc_class)
 
@@ -73,7 +73,6 @@ def ltl_class_factor(nmfc_class):
     return {"50": 0.9, "55": 1.0, "70": 1.2}.get(nmfc_class, 1.0)
 
 def rate_parcel(weight, distance):
-    # Parcel only for <= 150 lbs
     if weight > 150:
         return None
     return (8 + 0.06 * weight) * parcel_zone_multiplier(distance)
@@ -83,7 +82,7 @@ def rate_ltl(weight, distance, nmfc_class):
 
 # ----------------- Scenario Solvers -----------------
 def solve_as_is(df):
-    """Policy: <=150 lbs -> Parcel, else LTL."""
+    """Scenario 1: Policy — <=150 lbs -> Parcel, else LTL. No consolidation."""
     rows = []
     for _, r in df.iterrows():
         if r["Weight (lbs)"] <= 150:
@@ -99,282 +98,172 @@ def solve_as_is(df):
         })
     return pd.DataFrame(rows)
 
-def solve_optimized(df):
-    """Rate-shop: choose cheaper of Parcel vs LTL (Parcel only allowed <=150 lbs)."""
-    rows = []
-    for _, r in df.iterrows():
-        parcel_cost = rate_parcel(r["Weight (lbs)"], r["Distance (miles)"])
-        ltl_cost = rate_ltl(r["Weight (lbs)"], r["Distance (miles)"], r["NMFC Class"])
-
-        if parcel_cost is not None and parcel_cost < ltl_cost:
-            mode = "Parcel"
-            cost = parcel_cost
-        else:
-            mode = "LTL"
-            cost = ltl_cost
-
-        rows.append({
-            **r.to_dict(),
-            "Parcel Cost ($)": round(parcel_cost, 2) if parcel_cost is not None else None,
-            "LTL Cost ($)": round(ltl_cost, 2),
-            "Chosen Mode": mode,
-            "Chosen Cost ($)": round(cost, 2)
-        })
-    return pd.DataFrame(rows)
-
-def solve_consolidated(df):
-    """
-    Force ALL shipments into LTL, consolidate by O/D lane.
-    One LTL load per lane (sum weight, mean distance for toy example).
-    """
+def consolidate_ltl_lane_costs(df):
     lane = (
         df.groupby(["Origin", "Destination"], as_index=False)
           .agg({"Weight (lbs)": "sum", "Distance (miles)": "mean"})
     )
     lane["NMFC Class"] = lane["Weight (lbs)"].apply(get_nmfc_class)
-    lane["Consolidated LTL Cost ($)"] = lane.apply(
+    lane["Lane LTL Cost ($)"] = lane.apply(
         lambda r: rate_ltl(r["Weight (lbs)"], r["Distance (miles)"], r["NMFC Class"]),
         axis=1
     )
-    return lane
+    return lane, lane["Lane LTL Cost ($)"].sum()
 
-# ----------------- Run -----------------
-if st.button("Solve All Scenarios"):
-    # As-Is (policy)
+def solve_consolidate_within_mode(as_is_df):
+    ltl_shipments = as_is_df[as_is_df["Chosen Mode"] == "LTL"].copy()
+    parcel_shipments = as_is_df[as_is_df["Chosen Mode"] == "Parcel"].copy()
+    ltl_lane_table, ltl_total_consol = consolidate_ltl_lane_costs(ltl_shipments)
+    total_cost = parcel_shipments["Chosen Cost ($)"].sum() + ltl_total_consol
+    return ltl_lane_table, total_cost, parcel_shipments
+
+def solve_parcel_to_ltl_consolidated(df):
+    lane, total = consolidate_ltl_lane_costs(df)
+    return lane, total
+
+# ----------------- Map Helpers -----------------
+def get_routes_df(df, mode_col=None):
+    rows = []
+    for _, r in df.iterrows():
+        color = [200, 200, 200]
+        if mode_col:
+            color = [0, 102, 255] if r[mode_col] == "Parcel" else [255, 128, 0]
+        rows.append({
+            "from_lat": city_coords[r["Origin"]][0],
+            "from_lon": city_coords[r["Origin"]][1],
+            "to_lat": city_coords[r["Destination"]][0],
+            "to_lon": city_coords[r["Destination"]][1],
+            "color": color,
+        })
+    return pd.DataFrame(rows)
+
+def get_routes_df_from_lanes(lane_df, color):
+    rows = []
+    for _, r in lane_df.iterrows():
+        rows.append({
+            "from_lat": city_coords[r["Origin"]][0],
+            "from_lon": city_coords[r["Origin"]][1],
+            "to_lat": city_coords[r["Destination"]][0],
+            "to_lon": city_coords[r["Destination"]][1],
+            "color": color,
+        })
+    return pd.DataFrame(rows)
+
+def get_city_labels_df(df):
+    cities = set(df["Origin"].tolist() + df["Destination"].tolist())
+    return pd.DataFrame([{"lat": city_coords[c][0], "lon": city_coords[c][1], "city": c} for c in cities])
+
+def render_map(routes_df, labels_df, height=350):
+    st.pydeck_chart(pdk.Deck(
+        layers=[
+            pdk.Layer(
+                "ArcLayer",
+                data=routes_df,
+                get_source_position=["from_lon", "from_lat"],
+                get_target_position=["to_lon", "to_lat"],
+                get_width=2,
+                get_source_color="color",
+                get_target_color="color",
+                get_height=1.5,
+            ),
+            pdk.Layer(
+                "TextLayer",
+                data=labels_df,
+                get_position='[lon, lat]',
+                get_text='city',
+                get_size=14,
+                get_color=[0, 0, 0],
+            )
+        ],
+        initial_view_state=pdk.ViewState(latitude=39, longitude=-98, zoom=3.5, pitch=20),
+        height=height
+    ))
+
+# ----------------- RUN -----------------
+if st.button("Run Scenarios"):
+    # Scenario 1
     as_is_df = solve_as_is(shipments)
     total_as_is = as_is_df["Chosen Cost ($)"].sum()
 
-    # Optimized (rate shop)
-    opt_df = solve_optimized(shipments)
-    total_opt = opt_df["Chosen Cost ($)"].sum()
+    # Scenario 2
+    ltl_lane_table_2, total_consol_mode, parcel_df_2 = solve_consolidate_within_mode(as_is_df)
 
-    # Consolidated (all LTL grouped by lane)
-    cons_df = solve_consolidated(shipments)
-    total_cons = cons_df["Consolidated LTL Cost ($)"].sum()
+    # Scenario 3
+    lane_all_3, total_consol_all = solve_parcel_to_ltl_consolidated(shipments)
 
-    # ----------------- KPIs -----------------
+    # KPIs
     st.subheader("💰 Scenario KPIs")
     c1, c2, c3 = st.columns(3)
-    c1.metric("As‑Is (Policy) Cost", f"${total_as_is:,.2f}")
-    c2.metric("Optimized Mix Cost", f"${total_opt:,.2f}", f"Saved {total_as_is - total_opt:,.2f}")
-    c3.metric("Consolidated LTL Cost", f"${total_cons:,.2f}", f"Saved {total_opt - total_cons:,.2f}")
+    c1.metric("1) As‑Is (Policy)", f"${total_as_is:,.2f}")
+    c2.metric("2) Mode-Consolidated", f"${total_consol_mode:,.2f}", f"Saved {total_as_is - total_consol_mode:,.2f}")
+    c3.metric("3) Parcel→LTL Consolidated", f"${total_consol_all:,.2f}", f"Saved {total_consol_mode - total_consol_all:,.2f}")
 
-    # ----------------- Charts -----------------
+    # Chart
     st.subheader("📊 Total Cost Comparison")
     cost_data = pd.DataFrame({
-        "Scenario": ["As‑Is Policy", "Optimized Mix", "Consolidated LTL"],
-        "Total Cost ($)": [total_as_is, total_opt, total_cons]
+        "Scenario": ["1) As‑Is", "2) Mode-Consolidated", "3) Parcel→LTL Consolidated"],
+        "Total Cost ($)": [total_as_is, total_consol_mode, total_consol_all]
     })
     cost_chart = (
         alt.Chart(cost_data)
-        .mark_bar(size=40)  # control bar thickness
+        .mark_bar(size=40)
         .encode(
-            x=alt.X("Scenario:N", sort=["As‑Is Policy", "Optimized Mix", "Consolidated LTL"]),
+            x=alt.X("Scenario:N"),
             y=alt.Y("Total Cost ($):Q", axis=alt.Axis(format="$.2f")),
-            color=alt.Color("Scenario:N", legend=None),
+            color="Scenario:N",
             tooltip=["Scenario", alt.Tooltip("Total Cost ($):Q", format="$.2f")]
         )
-        .properties(width=550, height=280)
+        .properties(width=600, height=280)
     )
     st.altair_chart(cost_chart, use_container_width=False)
 
-    # Mode mix (show Parcel shrinking from As-Is to Optimized)
-    st.subheader("📊 Mode Mix (Counts)")
-    mode_mix = (
-        pd.DataFrame({
-            "Scenario": ["As‑Is Policy"] * len(as_is_df) + ["Optimized Mix"] * len(opt_df),
-            "Mode": list(as_is_df["Chosen Mode"]) + list(opt_df["Chosen Mode"])
-        })
-        .groupby(["Scenario", "Mode"], as_index=False)
-        .size()
-    )
+    # Maps
+    st.subheader("🗺 Maps — Arcs reduce from 1 ➜ 2 ➜ 3")
+    st.markdown("""
+**Legend**  
+🔵 Parcel (≤150 lbs)  
+🟠 LTL  
+🔴 Consolidated LTL (Scenario 3)
+""")
 
-    mix_chart = (
-        alt.Chart(mode_mix)
-        .mark_bar(size=35)
-        .encode(
-            x=alt.X("Scenario:N", sort=["As‑Is Policy", "Optimized Mix"]),
-            y=alt.Y("size:Q", title="Shipments"),
-            color=alt.Color("Mode:N", scale=alt.Scale(range=["#007bff", "#ff7f0e"])),
-            column=alt.Column("Mode:N", header=alt.Header(title="Mode")),
-            tooltip=["Scenario", "Mode", "size"]
-        )
-        .properties(width=250, height=250)
-        .resolve_scale(y='independent')
-    )
-    st.altair_chart(mix_chart, use_container_width=True)
-
-    # ----------------- Maps -----------------
-    st.subheader("🗺 Maps – Before, Optimized, Consolidated")
-
-    legend = """
-**Legend:**
-- 🔵 **Parcel**
-- 🟠 **LTL**
-- 🔴 **Consolidated LTL (lane-level)**
-- ⚪ **All LTL (As‑Is view only for contrast)**
-"""
-    st.markdown(legend)
-
-    def get_routes_df(df, mode_col=None):
-        """
-        Return arcs with color by mode (for As-Is & Optimized).
-        If mode_col is None, use gray. Otherwise:
-          Parcel -> blue, LTL -> orange.
-        """
-        rows = []
-        for _, r in df.iterrows():
-            origin, dest = r["Origin"], r["Destination"]
-            color = [200, 200, 200]  # default gray
-            if mode_col:
-                m = r[mode_col]
-                if m == "Parcel":
-                    color = [0, 102, 255]     # blue
-                else:
-                    color = [255, 128, 0]     # orange
-            rows.append({
-                "from_lat": city_coords[origin][0],
-                "from_lon": city_coords[origin][1],
-                "to_lat": city_coords[dest][0],
-                "to_lon": city_coords[dest][1],
-                "color": color,
-                "origin": origin,
-                "destination": dest
-            })
-        return pd.DataFrame(rows)
-
-    def get_lane_routes_df(df):
-        """
-        Consolidated arcs (one per lane), all in red.
-        """
-        rows = []
-        for _, r in df.iterrows():
-            origin, dest = r["Origin"], r["Destination"]
-            rows.append({
-                "from_lat": city_coords[origin][0],
-                "from_lon": city_coords[origin][1],
-                "to_lat": city_coords[dest][0],
-                "to_lon": city_coords[dest][1],
-                "color": [255, 0, 0],
-                "origin": origin,
-                "destination": dest
-            })
-        return pd.DataFrame(rows)
-
-    def get_city_labels_df(df):
-        city_list = set(df["Origin"].tolist() + df["Destination"].tolist())
-        return pd.DataFrame([
-            {"lat": city_coords[c][0], "lon": city_coords[c][1], "city": c} for c in city_list
-        ])
-
-    tab1, tab2, tab3 = st.tabs(["As‑Is (Policy)", "Optimized Mix", "Consolidated LTL"])
+    tab1, tab2, tab3 = st.tabs(["1) As‑Is", "2) Mode-Consolidated", "3) Parcel→LTL Consolidated"])
 
     with tab1:
-        routes_as_is = get_routes_df(as_is_df, mode_col="Chosen Mode")
-        city_labels = get_city_labels_df(as_is_df)
-        st.pydeck_chart(pdk.Deck(
-            layers=[
-                pdk.Layer(
-                    "ArcLayer",
-                    data=routes_as_is,
-                    get_source_position=["from_lon", "from_lat"],
-                    get_target_position=["to_lon", "to_lat"],
-                    get_width=2,
-                    get_source_color="color",
-                    get_target_color="color",
-                    get_height=1
-                ),
-                pdk.Layer(
-                    "TextLayer",
-                    data=city_labels,
-                    get_position='[lon, lat]',
-                    get_text='city',
-                    get_size=14,
-                    get_color=[0, 0, 0],
-                )
-            ],
-            initial_view_state=pdk.ViewState(latitude=39, longitude=-98, zoom=3, pitch=30),
-            height=400
-        ))
+        routes1 = get_routes_df(as_is_df, mode_col="Chosen Mode")
+        labels1 = get_city_labels_df(as_is_df)
+        render_map(routes1, labels1)
 
     with tab2:
-        routes_opt = get_routes_df(opt_df, mode_col="Chosen Mode")
-        city_labels = get_city_labels_df(opt_df)
-        st.pydeck_chart(pdk.Deck(
-            layers=[
-                pdk.Layer(
-                    "ArcLayer",
-                    data=routes_opt,
-                    get_source_position=["from_lon", "from_lat"],
-                    get_target_position=["to_lon", "to_lat"],
-                    get_width=2,
-                    get_source_color="color",
-                    get_target_color="color",
-                    get_height=1.5
-                ),
-                pdk.Layer(
-                    "TextLayer",
-                    data=city_labels,
-                    get_position='[lon, lat]',
-                    get_text='city',
-                    get_size=14,
-                    get_color=[0, 0, 0],
-                )
-            ],
-            initial_view_state=pdk.ViewState(latitude=39, longitude=-98, zoom=3, pitch=30),
-            height=400
-        ))
+        routes2_parcel = get_routes_df(parcel_df_2.assign(Chosen_Mode="Parcel"), mode_col="Chosen_Mode")
+        routes2_ltl = get_routes_df_from_lanes(ltl_lane_table_2, [255, 128, 0])
+        render_map(pd.concat([routes2_parcel, routes2_ltl], ignore_index=True),
+                   get_city_labels_df(pd.concat([
+                       parcel_df_2[["Origin", "Destination"]],
+                       ltl_lane_table_2[["Origin", "Destination"]]
+                   ])))
 
     with tab3:
-        routes_cons = get_lane_routes_df(cons_df)
-        city_labels = get_city_labels_df(cons_df.rename(columns={"Origin":"Origin","Destination":"Destination"}))
-        st.pydeck_chart(pdk.Deck(
-            layers=[
-                pdk.Layer(
-                    "ArcLayer",
-                    data=routes_cons,
-                    get_source_position=["from_lon", "from_lat"],
-                    get_target_position=["to_lon", "to_lat"],
-                    get_width=3,
-                    get_source_color="color",
-                    get_target_color="color",
-                    get_height=2
-                ),
-                pdk.Layer(
-                    "TextLayer",
-                    data=city_labels,
-                    get_position='[lon, lat]',
-                    get_text='city',
-                    get_size=14,
-                    get_color=[0, 0, 0],
-                )
-            ],
-            initial_view_state=pdk.ViewState(latitude=39, longitude=-98, zoom=3, pitch=30),
-            height=400
-        ))
+        routes3 = get_routes_df_from_lanes(lane_all_3, [255, 0, 0])
+        render_map(routes3, get_city_labels_df(lane_all_3))
 
-# ----------------- Business Context & Key Insights -----------------
+# ----------------- Business Context -----------------
 st.markdown("## 📖 Business Context & Key Insights")
 st.markdown("""
-- **As‑Is vs Optimized vs Consolidated:**  
-  - **As‑Is (Policy):** Parcel for ≤150 lbs, LTL otherwise.  
-  - **Optimized Mix:** Rate-shop each shipment (Parcel allowed only when ≤150 lbs) — some shipments switch **from Parcel to LTL** to reduce cost.  
-  - **Consolidated LTL:** All shipments are moved as **consolidated lane-level LTL**, leveraging **economies of scale**.
+**Scenarios:**
+1. **As‑Is:** Parcel (≤150 lbs) vs LTL, no consolidation.
+2. **Mode-Consolidated:** Only LTL shipments consolidated by lane, Parcel stays as-is.
+3. **Parcel→LTL Consolidated:** All shipments that benefit move to LTL and consolidate.
 
-- **What you see on the maps:**  
-  - **As‑Is:** Many blue (Parcel) + orange (LTL) arcs.  
-  - **Optimized:** **Fewer blue arcs** (Parcel shrinks where LTL is cheaper).  
-  - **Consolidated:** **One red arc per lane** — large LTL moves that beat per-shipment costs.
+**Takeaways:**  
+- Costs reduce 1 ➜ 2 ➜ 3 by combining **rate-shopping** and **lane consolidation**.
+- Shows how **TMS logic** works in a simplified, transparent way.
+""")
 
-- **Why this matters:**  
-  Real TMS engines optimize **both mode selection and consolidation**. This demo shows the mechanics with transparent assumptions:
-  - Parcel is **zone-based** and **≤150 lbs only**.  
-  - LTL uses **NMFC classes**, **distance**, and **weight breaks**.  
-  - Consolidation increases load weight → **lower NMFC factor** → lower $/mile.
-
-- **Extensions you could add next:**  
-  - **Dimensional weight** for Parcel.  
-  - **Carrier-specific tariffs** (real lane matrices).  
-  - **Service levels & SLAs**: add penalties for late deliveries (time windows).  
-  - **API-rate ingestion** and **rule parsing with LLMs**.  
+# ----------------- Tech Explanation -----------------
+st.markdown("## ⚙️ Tech & Python Explanation")
+st.markdown("""
+- **Python Tools:** Streamlit (UI), Pandas/Numpy (data), Altair (charts), PyDeck (free maps).
+- **Why PyDeck?** Interactive ArcLayer and TextLayer for cities — no paid API keys required.
+- **Design:** Modular functions (`rate_parcel()`, `rate_ltl()`, scenario solvers) ensure clarity.
+- **Next:** Add time windows, dimensional weight, and real carrier rates (CSV/API).
 """)
