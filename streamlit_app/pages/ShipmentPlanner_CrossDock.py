@@ -2,6 +2,9 @@ import streamlit as st
 
 # --- PAGE CONFIG ---
 st.set_page_config(page_title="Cross-Dock & Multi-Echelon Routing", layout="wide")
+# Navigation link to go back
+st.page_link("../TransportationSuite.py", label="⬅ Back to Transportation Suite")
+
 
 # --- TITLE ---
 st.title("🔄 Cross-Dock & Multi-Echelon Routing")
