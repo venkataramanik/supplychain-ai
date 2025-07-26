@@ -6,3 +6,5 @@ folium
 plotly
 pulp
 scikit-learn
+matplotlib
+
