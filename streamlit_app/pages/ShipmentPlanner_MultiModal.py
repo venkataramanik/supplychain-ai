@@ -1,10 +1,15 @@
 import streamlit as st
 
-# --- PAGE CONFIG ---
 st.set_page_config(page_title="Multi-Modal & Green Logistics", layout="wide")
 
-# Navigation link to go back
-st.page_link("../TransportationSuite.py", label="⬅ Back to Transportation Suite")
+# Navigation
+st.page_link("pages/TransportationSuite.py", label="⬅ Back to Transportation Suite")
+st.page_link("Home.py", label="🏠 Back to Home")
+
+# Image
+st.image("https://upload.wikimedia.org/wikipedia/commons/7/73/Multimodal_transport_icon.png",
+         caption="Multi-modal shipping modes", use_container_width=True)
+
 
 
 # --- TITLE ---
