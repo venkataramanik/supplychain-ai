@@ -7,4 +7,5 @@ plotly
 pulp
 scikit-learn
 matplotlib
-
+pydeck
+altair
