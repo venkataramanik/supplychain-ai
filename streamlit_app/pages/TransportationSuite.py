@@ -3,7 +3,7 @@ import streamlit as st
 st.set_page_config(page_title="Transportation Optimization Suite", layout="wide")
 
 st.title("🚛 Transportation Optimization Suite")
-st.image("images/transportation_network.png", caption="Example of a transportation optimization network.", use_column_width=True)
+st.image("images/Supply-chain-shipping-modes.jpg", caption="Example of a transportation optimization network.", use_container_width=True)
 
 st.markdown("""
 This suite demonstrates **end-to-end transportation optimization**:
