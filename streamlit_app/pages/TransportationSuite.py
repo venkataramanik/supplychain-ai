@@ -5,38 +5,31 @@ st.set_page_config(page_title="Transportation Optimization Suite", layout="wide"
 
 st.title("🚛 Transportation Optimization Suite")
 
-# ---------- Robust image loader ----------
-def show_image_safe(relative_path_from_streamlit_app_images: str, caption: str):
+# ---------- Robust image loader with centered layout ----------
+def show_image_safe(relative_path_from_images: str, caption: str):
     """
-    Resolve the image path robustly, regardless of where this page is executed from.
-    Folder layout:
-        streamlit_app/
-          ├── Home.py
-          ├── pages/
-          │     └── TransportationSuite.py  <-- this file
-          └── images/
-                └── <your image>
-
-    We go two levels up from this file (pages -> streamlit_app), then into images/.
+    Displays an image from the ../images folder, centered using columns.
     """
     try:
-        # path to streamlit_app (.. from pages, then resolve)
         streamlit_app_root = Path(__file__).resolve().parents[1]
-        img_path = streamlit_app_root / "images" / relative_path_from_streamlit_app_images
+        img_path = streamlit_app_root / "images" / relative_path_from_images
 
         if img_path.exists():
-            st.image(str(img_path), caption=caption, use_container_width=True)
+            col1, col2, col3 = st.columns([1, 4, 1])  # Center image
+            with col2:
+                st.image(str(img_path), caption=caption, use_container_width=True)
         else:
             st.warning(f"Image not found at: {img_path}")
     except Exception as e:
         st.warning(f"Could not load image due to: {e}")
 
-# Call the safe image loader
+# Display the image
 show_image_safe(
     "Supply-chain-shipping-modes.jpg",
     caption="Example of a transportation optimization network."
 )
 
+# ----------- Page Content -----------
 st.markdown("""
 This suite demonstrates **end-to-end transportation optimization**:
 - **Rating & Mode Selection**
