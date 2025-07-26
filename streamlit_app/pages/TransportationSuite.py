@@ -1,17 +1,41 @@
 import streamlit as st
-import os
+from pathlib import Path
 
 st.set_page_config(page_title="Transportation Optimization Suite", layout="wide")
 
 st.title("🚛 Transportation Optimization Suite")
 
-# Debug line (optional - remove once confirmed)
-# st.write("Files in images folder:", os.listdir("../images"))
+# ---------- Robust image loader ----------
+def show_image_safe(relative_path_from_streamlit_app_images: str, caption: str):
+    """
+    Resolve the image path robustly, regardless of where this page is executed from.
+    Folder layout:
+        streamlit_app/
+          ├── Home.py
+          ├── pages/
+          │     └── TransportationSuite.py  <-- this file
+          └── images/
+                └── <your image>
 
-# Display the image with correct relative path
-st.image("../images/Supply-chain-shipping-modes.jpg",
-         caption="Example of a transportation optimization network.",
-         use_container_width=True)
+    We go two levels up from this file (pages -> streamlit_app), then into images/.
+    """
+    try:
+        # path to streamlit_app (.. from pages, then resolve)
+        streamlit_app_root = Path(__file__).resolve().parents[1]
+        img_path = streamlit_app_root / "images" / relative_path_from_streamlit_app_images
+
+        if img_path.exists():
+            st.image(str(img_path), caption=caption, use_container_width=True)
+        else:
+            st.warning(f"Image not found at: {img_path}")
+    except Exception as e:
+        st.warning(f"Could not load image due to: {e}")
+
+# Call the safe image loader
+show_image_safe(
+    "Supply-chain-shipping-modes.jpg",
+    caption="Example of a transportation optimization network."
+)
 
 st.markdown("""
 This suite demonstrates **end-to-end transportation optimization**:
