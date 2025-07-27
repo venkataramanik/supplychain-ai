@@ -54,7 +54,7 @@ st.markdown("## **Explore the Pilots**")
 st.markdown("### ⚙️ Optimization Models")
 st.markdown("This section showcases how mathematical optimization and AI can be used to find the most efficient solutions for complex supply chain problems, minimizing costs and maximizing efficiency.")
 st.page_link("pages/TransportationSuite.py", label="🚛 Go to Transportation Optimization Suite") # Updated as requested
-st.page_link("pages/CrossDock.py", label="🔄 Go to Cross-Dock & Multi-Echelon Routing")
+st.page_link("pages/ShipmentPlanner_CrossDock.py", label="🔄 Go to Cross-Dock & Multi-Echelon Routing")
 st.page_link("pages/DynamicReRouting.py", label="⚡ Go to Dynamic Re-Routing (Real-Time Optimization)")
 st.page_link("pages/VRPTW.py", label="⏰ Go to Vehicle Routing Problem with Time Windows (VRPTW)")
 st.page_link("pages/NetworkDesign.py", label="🌐 Go to Network Design & Optimization")
