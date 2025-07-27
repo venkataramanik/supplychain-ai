@@ -5,6 +5,7 @@ import altair as alt
 from sklearn.ensemble import IsolationForest
 from sklearn.preprocessing import MinMaxScaler
 import random
+import time # Import time for dynamic seed
 
 # Set Streamlit page configuration
 st.set_page_config(page_title="SupplyChain.ai — Supplier Risk Profiling", layout="wide")
@@ -15,10 +16,15 @@ st.title("🛡️ AI-Powered Supplier Performance & Risk Profiling")
 # ---------------------------------------------------------
 
 @st.cache_data
-def generate_supplier_data(num_suppliers: int, seed: int = 42) -> pd.DataFrame:
+def generate_supplier_data(num_suppliers: int, seed: int = None) -> pd.DataFrame:
     """Generates simulated supplier performance data with some anomalies."""
-    np.random.seed(seed)
-    random.seed(seed)
+    if seed is not None:
+        np.random.seed(seed)
+        random.seed(seed)
+    else: # If no seed, ensure true randomness by re-seeding with current time
+        np.random.seed(int(time.time()))
+        random.seed(int(time.time()))
+
 
     data = []
     supplier_categories = ["Raw Material", "Component", "Logistics", "Packaging", "Service"]
@@ -146,7 +152,8 @@ def calculate_risk_scores(df: pd.DataFrame) -> pd.DataFrame:
 with st.sidebar:
     st.header("⚙️ Scenario Controls")
     num_suppliers = st.slider("Number of Suppliers", 50, 500, 100, 10)
-    data_seed = st.number_input("Data Random Seed", value=42, step=1)
+    # Changed default value to None for true randomization on refresh, but allows user to set a seed for reproducibility
+    data_seed = st.number_input("Data Random Seed (set to 0 for new data each refresh)", value=None, step=1, help="Enter a number for reproducible data, or leave blank/set to 0 for new data on each refresh.")
     
     st.markdown("---")
     st.markdown("### Risk Thresholds")
@@ -163,7 +170,9 @@ with st.sidebar:
         return df_updated
 
 # Generate and process data
-suppliers_df = generate_supplier_data(num_suppliers, data_seed)
+# If data_seed is None or 0, pass None to generate_supplier_data to ensure new data each time
+current_seed = data_seed if data_seed is not None and data_seed != 0 else None
+suppliers_df = generate_supplier_data(num_suppliers, current_seed)
 suppliers_df_risked = calculate_risk_scores(suppliers_df)
 suppliers_df_risked = update_risk_levels(suppliers_df_risked, low_risk_threshold, medium_risk_threshold)
 
@@ -264,44 +273,45 @@ st.dataframe(filtered_df.sort_values(by='FinalRiskScore', ascending=False), use_
 st.markdown("""
 ## 📖 Business Context & Highlights
 
-### **Problem Statement**
-In complex global supply chains, managing supplier risk is paramount. Disruptions due to poor supplier performance (e.g., late deliveries, quality issues, financial instability) can lead to significant operational delays, increased costs, reputational damage, and lost revenue. Traditional manual monitoring methods are often reactive, time-consuming, and prone to human error, making it difficult to proactively identify and mitigate emerging risks.
+### **Problem Statement: The Challenge of Reactive Supplier Risk**
+In my 20+ years in supply chain and logistics, a recurring and costly problem has been the **reactive nature of supplier risk management.** We often found ourselves scrambling to address issues – like unexpected late deliveries, sudden quality defects, or even a supplier's financial distress – *after* they had already impacted our production, customer commitments, or bottom line. Manually monitoring a vast network of suppliers is simply not scalable, leading to blind spots and significant operational disruptions.
 
-### **Why This Solution Matters (Business Value)**
-This AI-powered prototype demonstrates a proactive approach to supplier risk management. By leveraging machine learning and data analytics, it allows supply chain professionals to:
-- **Proactively Identify At-Risk Suppliers:** Move from reactive firefighting to predictive risk identification.
-- **Improve Supply Chain Resilience:** Mitigate potential disruptions before they impact operations.
-- **Optimize Sourcing Decisions:** Inform strategic choices about supplier relationships and diversification.
-- **Enhance Operational Efficiency:** Reduce time spent on manual risk assessments and supplier performance monitoring.
-- **Drive Cost Savings:** Avoid costs associated with delays, quality issues, and emergency sourcing.
+### **Why This Solution Matters: Proactive Resilience & Strategic Advantage**
+This AI-powered prototype is designed to transform that reactive approach into a **proactive, intelligent risk management system.** As a supply chain practitioner, I see immense value in its ability to:
+- **Spot Risks Early:** It acts as an early warning system, identifying potential issues before they cause widespread disruption.
+- **Build Supply Chain Resilience:** By mitigating risks proactively, we can prevent costly delays and maintain continuity of supply.
+- **Inform Sourcing Decisions:** The insights gained allow for more strategic choices in supplier selection, diversification, and relationship management.
+- **Boost Operational Efficiency:** It frees up valuable time spent on manual monitoring, allowing teams to focus on strategic initiatives and problem-solving rather than firefighting.
+- **Drive Tangible Cost Savings:** Avoiding disruptions, quality issues, and emergency sourcing directly translates into significant cost reductions.
 
-### **How It Works (Simplified ML Explanation, Referencing Tools)**
-This application uses a combination of statistical analysis and a machine learning model to identify anomalies in supplier performance data.
+### **How It Works: My Approach to AI-Driven Risk Assessment**
+My goal was to build a system that thinks like a seasoned supply chain professional, but with the speed and analytical power of AI. Here's how I approached it:
 
-1.  **Data Ingestion & Preparation (using Pandas):** We start by gathering key supplier performance data – things like Lead Time, On-Time Delivery Rate, and Quality Defect Rate. Using **Pandas**, a powerful data manipulation tool in **Python**, we then prepare this data, ensuring it's clean and structured for analysis. This step also involves transforming some metrics (e.g., inverting 'On-Time Delivery' so lower percentages indicate higher risk) to ensure all factors contribute consistently to the overall risk assessment.
-2.  **AI-Powered Anomaly Detection (using Scikit-learn's Isolation Forest):** The core of the solution lies in an AI technique called **Anomaly Detection**. Specifically, we employ the **Isolation Forest** algorithm from **Scikit-learn**, a leading **Python** machine learning library. This algorithm is excellent at automatically spotting unusual patterns or 'outliers' in the data – suppliers whose performance deviates significantly from the norm, potentially signaling a hidden risk.
-3.  **Integrating Business Rules (Python Logic):** Beyond just statistical anomalies, our experience tells us that certain performance thresholds are inherently risky. We've incorporated these **business rules directly into the Python logic** of the system. For instance, if a supplier's on-time delivery falls below a certain percentage, or their defect rate exceeds a threshold, these factors contribute to their risk profile, even if they aren't extreme statistical outliers.
-4.  **Calculating a Comprehensive Risk Score (Python & Scaling):** All these factors – the AI-detected anomalies and our business-defined risk triggers – are then combined. Through **Python's** numerical capabilities and scaling techniques, we generate a single, easy-to-understand **Composite Risk Score** for each supplier, ranging from 0 to 100. A higher score means higher risk.
-5.  **Interactive Dashboard & Visualization (Streamlit & Altair):** Finally, to make these insights actionable for supply chain managers, we present everything in an interactive dashboard built with **Streamlit**. This **Python** framework allows us to quickly create web applications. We use **Altair** for dynamic visualizations, enabling users to explore risk distributions, identify high-risk suppliers at a glance, and filter the data to focus on specific categories or risk levels.
+1.  **Gathering & Preparing the Data:** We start by bringing together key supplier performance data – things like their historical **Lead Time**, **On-Time Delivery Rate**, **Quality Defect Rate**, and even qualitative aspects like **Communication Score** and **Financial Stability Score**. Using **Pandas**, a powerful data manipulation tool in **Python**, I prepare this data, ensuring it's clean and structured for analysis. This also involves some smart transformations, like inverting certain metrics so that a lower 'On-Time Delivery' percentage correctly signals higher risk.
+2.  **AI-Powered Anomaly Detection:** The core intelligence comes from an AI technique called **Anomaly Detection**. I've employed the **Isolation Forest** algorithm from **Scikit-learn**, a leading **Python** machine learning library. This algorithm is incredibly effective at automatically spotting unusual patterns or 'outliers' in the data – suppliers whose performance deviates significantly from what's considered 'normal.' This helps us uncover hidden risks that might be missed by simple thresholds.
+3.  **Integrating My Business Rules:** Based on my years of experience, I know that certain performance levels are inherently risky, even if they aren't statistical anomalies. So, I've embedded these **business rules directly into the Python logic** of the system. For example, if a supplier's on-time delivery consistently dips below 85%, or their defect rate creeps above 5%, these factors are explicitly weighted into their risk profile. This ensures the AI aligns with critical operational realities.
+4.  **Calculating a Comprehensive Risk Score:** All these insights – from the AI's anomaly detection and my defined business rules – are combined. Using **Python's** numerical capabilities and scaling techniques, we generate a single, easy-to-understand **Composite Risk Score** for each supplier, ranging from 0 to 100. This provides a holistic view, where a higher score means higher risk.
+5.  **Interactive Dashboard for Action:** To make these powerful insights accessible and actionable for supply chain managers, I've built an intuitive, interactive dashboard using **Streamlit**. This **Python** framework allows for rapid web application development. I use **Altair** for dynamic visualizations, which let users quickly see risk distributions, identify high-risk suppliers at a glance, and filter the data by category or risk level to prioritize their focus.
 
-### **Key Performance Indicators (KPIs) Improved**
-- **Proactive Risk Identification:** Number of high-risk suppliers flagged.
-- **Supplier Performance Visibility:** Clear overview of OTD, Quality, Lead Times.
-- **Operational Efficiency:** Reduced manual effort in risk assessment.
+### **Key Performance Indicators (KPIs) This Solution Improves**
+- **Reduced High-Risk Supplier Count:** Direct measure of proactive risk mitigation.
+- **Enhanced Supplier Performance Visibility:** Clear, data-driven insights into OTD, Quality, and Lead Times across the network.
+- **Increased Operational Efficiency:** Less time spent on reactive problem-solving, more on strategic supplier management.
+- **Improved Supply Chain Resilience:** Quantifiable reduction in potential disruption events.
 
-### **Tech Stack**
-- **Python:** Core programming language.
-- **Pandas:** Data manipulation and analysis.
-- **Scikit-learn:** For the Isolation Forest machine learning model.
-- **Altair:** For interactive data visualizations (scatter plots, bar charts).
-- **Streamlit:** For building the interactive web application and dashboard.
+### **Tech Stack: The Tools I Used**
+- **Python:** The foundational programming language for all logic and analytics.
+- **Pandas:** Essential for data preparation, cleaning, and manipulation.
+- **Scikit-learn:** For implementing robust machine learning algorithms, specifically Isolation Forest for anomaly detection.
+- **Altair:** For creating clear, interactive, and insightful data visualizations.
+- **Streamlit:** For rapidly building and deploying the interactive web-based dashboard.
 
-### **Next Steps & Advanced Considerations**
-- **Real-time Data Integration:** Connect to ERP, SRM, or external data sources (e.g., news feeds for geopolitical risk, financial APIs) for live updates.
-- **Time-Series Anomaly Detection:** Implement models that detect anomalies in *trends* over time (e.g., a gradual decline in OTD).
-- **Prescriptive Analytics:** Beyond identifying risk, recommend specific mitigation actions (e.g., "Increase safety stock for products from this supplier," "Initiate supplier development program").
-- **Predictive Maintenance for Assets:** Apply similar anomaly detection to predict equipment failures in warehouses or fleets.
-- **Network Resilience Simulation:** Simulate the impact of a supplier disruption on the entire supply chain network.
-- **Explainable AI (XAI):** Provide more detailed explanations for *why* a specific supplier is flagged as high-risk (e.g., using SHAP or LIME values).
-- **Feedback Loop:** Allow users to provide feedback on risk classifications to continuously improve the model.
+### **Next Steps & Strategic Vision**
+This prototype lays a strong foundation. Looking forward, the next strategic steps would involve:
+- **Real-time Data Integration:** Connecting directly to ERP, SRM, or external data sources (e.g., news feeds for geopolitical risk, financial APIs) for live, continuous risk monitoring.
+- **Predictive & Prescriptive Actions:** Moving beyond just identifying risk to recommending specific mitigation actions (e.g., "Increase safety stock for products from this supplier," "Engage in a supplier development program").
+- **Time-Series Analysis:** Implementing models that detect anomalies in performance *trends* over time, not just static snapshots.
+- **Explainable AI (XAI):** Providing even more transparent explanations for *why* a specific supplier is flagged as high-risk, building trust and facilitating quicker action.
+- **Network Resilience Simulation:** Simulating the ripple effect of a supplier disruption across the entire supply chain network to assess overall vulnerability.
+- **Continuous Learning Loop:** Establishing a feedback mechanism where user actions and outcomes refine the AI model over time.
 """)
