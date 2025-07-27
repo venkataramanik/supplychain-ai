@@ -150,89 +150,98 @@ BASE_TRAVEL_TIMES = get_base_travel_times(DEMO_LOCATIONS)
 # --- Simulation Logic ---
 @st.cache_data(ttl=1) # Cache for 1 second to allow quick updates
 def run_dynamic_routing_scenario(disruption_active, disruption_segment, disruption_factor):
+    # Initial routes (static plan)
+    initial_routes_info = []
+    # Vehicle 1: A -> B -> C -> A
+    v1_initial_path = ["Warehouse (A)", "Customer 1 (B)", "Customer 2 (C)", "Warehouse (A)"]
+    v1_initial_time = 0
+    v1_initial_segments = []
+    for i in range(len(v1_initial_path) - 1):
+        start_node = v1_initial_path[i]
+        end_node = v1_initial_path[i+1]
+        segment_time = BASE_TRAVEL_TIMES.get((start_node, end_node), float('inf'))
+        v1_initial_time += segment_time
+        v1_initial_segments.append((start_node, end_node, segment_time))
+    initial_routes_info.append({"Vehicle": "Vehicle 1", "Path": v1_initial_path, "TotalTime": v1_initial_time, "Segments": v1_initial_segments})
+
+    # Vehicle 2: A -> D -> E -> A
+    v2_initial_path = ["Warehouse (A)", "Customer 3 (D)", "Customer 4 (E)", "Warehouse (A)"]
+    v2_initial_time = 0
+    v2_initial_segments = []
+    for i in range(len(v2_initial_path) - 1):
+        start_node = v2_initial_path[i]
+        end_node = v2_initial_path[i+1]
+        segment_time = BASE_TRAVEL_TIMES.get((start_node, end_node), float('inf'))
+        v2_initial_time += segment_time
+        v2_initial_segments.append((start_node, end_node, segment_time))
+    initial_routes_info.append({"Vehicle": "Vehicle 2", "Path": v2_initial_path, "TotalTime": v2_initial_time, "Segments": v2_initial_segments})
+
+    # Current routes (after potential disruption and re-routing)
     current_travel_times = BASE_TRAVEL_TIMES.copy()
-    
-    # Apply disruption if active
     if disruption_active and disruption_segment:
         segment_start, segment_end = disruption_segment
         if (segment_start, segment_end) in current_travel_times:
             current_travel_times[(segment_start, segment_end)] *= disruption_factor
             current_travel_times[(segment_end, segment_start)] *= disruption_factor # Bidirectional
 
-    # Define initial vehicle and orders
-    # Vehicle 1: A -> B -> C -> A
-    # Vehicle 2: A -> D -> E -> A
+    current_routes_info = []
     
-    # Simplified VRP solver (finding shortest path for fixed sequence)
-    # In a real scenario, this would be OR-Tools or a more complex algorithm
-    
-    routes_info = []
-    
-    # Vehicle 1 Route: Warehouse (A) -> Customer 1 (B) -> Customer 2 (C) -> Warehouse (A)
-    v1_path = ["Warehouse (A)", "Customer 1 (B)", "Customer 2 (C)", "Warehouse (A)"]
-    v1_total_time = 0
-    v1_total_dist = 0
-    v1_segments = []
-    for i in range(len(v1_path) - 1):
-        start_node = v1_path[i]
-        end_node = v1_path[i+1]
-        segment_time = current_travel_times.get((start_node, end_node), float('inf'))
-        segment_dist = haversine_miles(DEMO_LOCATIONS[start_node][0], DEMO_LOCATIONS[start_node][1],
-                                       DEMO_LOCATIONS[end_node][0], DEMO_LOCATIONS[end_node][1])
-        v1_total_time += segment_time
-        v1_total_dist += segment_dist
-        v1_segments.append((start_node, end_node, segment_time))
-    routes_info.append({"Vehicle": "Vehicle 1", "Path": v1_path, "TotalTime": v1_total_time, "TotalDist": v1_total_dist, "Segments": v1_segments})
+    # Process Vehicle 1
+    v1_current_path = list(v1_initial_path) # Start with initial path
+    v1_current_time = 0
+    v1_current_segments = []
+    v1_rerouted = False
 
-    # Vehicle 2 Route: Warehouse (A) -> Customer 3 (D) -> Customer 4 (E) -> Warehouse (A)
-    v2_path = ["Warehouse (A)", "Customer 3 (D)", "Customer 4 (E)", "Warehouse (A)"]
-    v2_total_time = 0
-    v2_total_dist = 0
-    v2_segments = []
-    for i in range(len(v2_path) - 1):
-        start_node = v2_path[i]
-        end_node = v2_path[i+1]
-        segment_time = current_travel_times.get((start_node, end_node), float('inf'))
-        segment_dist = haversine_miles(DEMO_LOCATIONS[start_node][0], DEMO_LOCATIONS[start_node][1],
-                                       DEMO_LOCATIONS[end_node][0], DEMO_LOCATIONS[end_node][1])
-        v2_total_time += segment_time
-        v2_total_dist += segment_dist
-        v2_segments.append((start_node, end_node, segment_time))
-    routes_info.append({"Vehicle": "Vehicle 2", "Path": v2_path, "TotalTime": v2_total_time, "TotalDist": v2_total_dist, "Segments": v2_segments})
-
-    # Simulate re-routing for Vehicle 1 if disruption affects its path
-    # For this demo, we'll simplify: if disruption is on A-B, Vehicle 1 considers A-C-B-A
-    # This is a very basic heuristic, not a full VRP re-optimization
+    # Simplified re-routing logic for Vehicle 1 if A-B is disrupted
     if disruption_active and disruption_segment == ("Warehouse (A)", "Customer 1 (B)"):
-        st.info(f"Disruption detected on {disruption_segment[0]} to {disruption_segment[1]}! Re-routing Vehicle 1...")
-        # New alternative path for Vehicle 1: A -> C -> B -> A (example alternative)
-        v1_alt_path = ["Warehouse (A)", "Customer 2 (C)", "Customer 1 (B)", "Warehouse (A)"]
-        v1_alt_total_time = 0
-        v1_alt_total_dist = 0
-        v1_alt_segments = []
-        for i in range(len(v1_alt_path) - 1):
-            start_node = v1_alt_path[i]
-            end_node = v1_alt_path[i+1]
-            segment_time = current_travel_times.get((start_node, end_node), float('inf'))
-            segment_dist = haversine_miles(DEMO_LOCATIONS[start_node][0], DEMO_LOCATIONS[start_node][1],
-                                           DEMO_LOCATIONS[end_node][0], DEMO_LOCATIONS[end_node][1])
-            v1_alt_total_time += segment_time
-            v1_alt_total_dist += segment_dist
-            v1_alt_segments.append((start_node, end_node, segment_time))
+        # Consider an alternative path: A -> C -> B -> A (skipping direct A-B)
+        # Calculate time for this alternative
+        alt_path_nodes = ["Warehouse (A)", "Customer 2 (C)", "Customer 1 (B)", "Warehouse (A)"]
+        alt_time = 0
+        for i in range(len(alt_path_nodes) - 1):
+            start_node = alt_path_nodes[i]
+            end_node = alt_path_nodes[i+1]
+            alt_time += current_travel_times.get((start_node, end_node), float('inf'))
         
-        # Compare original vs alternative
-        if v1_alt_total_time < v1_total_time: # If alternative is faster, choose it
-            routes_info[0]["Path"] = v1_alt_path
-            routes_info[0]["TotalTime"] = v1_alt_total_time
-            routes_info[0]["TotalDist"] = v1_alt_total_dist
-            routes_info[0]["Segments"] = v1_alt_segments
-            routes_info[0]["Re-routed"] = True
-        else:
-            routes_info[0]["Re-routed"] = False # Stick to original if alt is worse
-    else:
-        routes_info[0]["Re-routed"] = False
+        # If the alternative is faster than the disrupted original path, take it
+        if alt_time < v1_initial_time * disruption_factor: # Compare to original path if it were disrupted
+            v1_current_path = alt_path_nodes
+            v1_current_time = alt_time
+            v1_rerouted = True
+            st.info(f"Vehicle 1 re-routed due to disruption on {disruption_segment[0]} to {disruption_segment[1]}!")
+        else: # If alternative is not better, stick to original (but with disruption impact)
+            for i in range(len(v1_initial_path) - 1):
+                start_node = v1_initial_path[i]
+                end_node = v1_initial_path[i+1]
+                v1_current_time += current_travel_times.get((start_node, end_node), float('inf'))
+    else: # No disruption or disruption not on A-B, stick to initial path with current times
+        for i in range(len(v1_initial_path) - 1):
+            start_node = v1_initial_path[i]
+            end_node = v1_initial_path[i+1]
+            v1_current_time += current_travel_times.get((start_node, end_node), float('inf'))
+    
+    # Re-calculate segments for current path
+    for i in range(len(v1_current_path) - 1):
+        start_node = v1_current_path[i]
+        end_node = v1_current_path[i+1]
+        segment_time = current_travel_times.get((start_node, end_node), float('inf'))
+        v1_current_segments.append((start_node, end_node, segment_time))
 
-    return routes_info
+    current_routes_info.append({"Vehicle": "Vehicle 1", "Path": v1_current_path, "TotalTime": v1_current_time, "Segments": v1_current_segments, "Re-routed": v1_rerouted})
+
+    # Process Vehicle 2 (no re-routing logic for this demo, just apply disruption if any)
+    v2_current_path = list(v2_initial_path)
+    v2_current_time = 0
+    v2_current_segments = []
+    for i in range(len(v2_initial_path) - 1):
+        start_node = v2_initial_path[i]
+        end_node = v2_initial_path[i+1]
+        segment_time = current_travel_times.get((start_node, end_node), float('inf'))
+        v2_current_time += segment_time
+        v2_current_segments.append((start_node, end_node, segment_time))
+    current_routes_info.append({"Vehicle": "Vehicle 2", "Path": v2_current_path, "TotalTime": v2_current_time, "Segments": v2_current_segments, "Re-routed": False})
+
+    return initial_routes_info, current_routes_info
 
 # --- Streamlit Demo UI ---
 st.markdown("---")
@@ -245,7 +254,7 @@ with col_disrupt:
         "Select a road segment to simulate traffic/closure:",
         options=[
             ("None", "No Disruption"),
-            ("Warehouse (A)", "Customer 1 (B)"),
+            ("Warehouse (A)", "Customer 1 (B)"), # This segment triggers re-routing for V1
             ("Customer 1 (B)", "Customer 2 (C)"),
             ("Warehouse (A)", "Customer 3 (D)"),
             ("Customer 3 (D)", "Customer 4 (E)")
@@ -283,7 +292,7 @@ if 'disruption_factor' not in st.session_state:
     st.session_state.disruption_factor = 1.0
 
 # Run the simulation logic
-routes_data = run_dynamic_routing_scenario(
+initial_routes_data, current_routes_data = run_dynamic_routing_scenario(
     st.session_state.disruption_active,
     st.session_state.disruption_segment,
     st.session_state.disruption_factor
@@ -291,8 +300,8 @@ routes_data = run_dynamic_routing_scenario(
 
 # --- Display KPIs ---
 st.subheader("KPIs: Impact of Disruption")
-initial_total_time = sum(BASE_TRAVEL_TIMES.get((s,e),0) for v_info in routes_data for s,e,_ in v_info["Segments"])
-current_total_time = sum(v_info["TotalTime"] for v_info in routes_data)
+initial_total_time = sum(v_info["TotalTime"] for v_info in initial_routes_data)
+current_total_time = sum(v_info["TotalTime"] for v_info in current_routes_data)
 
 col_kpi1, col_kpi2 = st.columns(2)
 with col_kpi1:
@@ -304,7 +313,7 @@ with col_kpi2:
 st.subheader("Visualizing Routes")
 
 @st.cache_data
-def render_dynamic_map(routes_info, locations, disruption_segment_viz, disruption_factor_viz):
+def render_dynamic_map(initial_routes, current_routes, locations, disruption_segment_viz, disruption_factor_viz):
     m = folium.Map(location=[locations["Warehouse (A)"][0], locations["Warehouse (A)"][1]], zoom_start=11)
 
     # Add location markers
@@ -316,13 +325,27 @@ def render_dynamic_map(routes_info, locations, disruption_segment_viz, disruptio
             icon=folium.Icon(color=icon_color, icon="info-sign")
         ).add_to(m)
 
-    # Add routes
     vehicle_colors = {"Vehicle 1": "purple", "Vehicle 2": "darkred"}
-    for v_info in routes_info:
-        path_coords = [locations[node] for node in v_info["Path"]]
-        is_rerouted = v_info.get("Re-routed", False)
-        
-        # Draw each segment individually to highlight disrupted one
+
+    # Draw initial routes (dashed grey)
+    if st.session_state.disruption_active: # Only show initial if a disruption is active for comparison
+        for v_info in initial_routes:
+            for i in range(len(v_info["Path"]) - 1):
+                start_node = v_info["Path"][i]
+                end_node = v_info["Path"][i+1]
+                segment_coords = [locations[start_node], locations[end_node]]
+                
+                folium.PolyLine(
+                    locations=segment_coords,
+                    color="lightgrey", # Initial path in light grey
+                    weight=3,
+                    opacity=0.7,
+                    dash_array="5, 5", # Dashed line for initial
+                    tooltip=f"Initial {v_info['Vehicle']}: {start_node} → {end_node}<br>Time: {v_info['Segments'][i][2]:.1f} hrs"
+                ).add_to(m)
+
+    # Draw current routes (solid colored)
+    for v_info in current_routes:
         for i in range(len(v_info["Path"]) - 1):
             start_node = v_info["Path"][i]
             end_node = v_info["Path"][i+1]
@@ -342,9 +365,11 @@ def render_dynamic_map(routes_info, locations, disruption_segment_viz, disruptio
                 line_opacity = 1.0
                 line_dash = "5, 5" # Dashed for disruption
 
-            tooltip_text = f"{v_info['Vehicle']}: {start_node} → {end_node}<br>Time: {v_info['Segments'][i][2]:.1f} hrs"
+            tooltip_text = f"Current {v_info['Vehicle']}: {start_node} → {end_node}<br>Time: {v_info['Segments'][i][2]:.1f} hrs"
             if segment_is_disrupted:
                 tooltip_text += f"<br>**DISRUPTED (x{disruption_factor_viz:.1f})**"
+            if v_info.get("Re-routed") and not segment_is_disrupted: # Indicate new segments of rerouted path
+                 tooltip_text += "<br>**RE-ROUTED PATH**"
             
             folium.PolyLine(
                 locations=segment_coords,
@@ -356,7 +381,6 @@ def render_dynamic_map(routes_info, locations, disruption_segment_viz, disruptio
             ).add_to(m)
         
         # Add a marker at the current position (simplified, just show start for now)
-        # In a real demo, this would move along the path
         folium.CircleMarker(
             location=locations[v_info["Path"][0]], # Start of route
             radius=7,
@@ -366,21 +390,38 @@ def render_dynamic_map(routes_info, locations, disruption_segment_viz, disruptio
             popup=f"{v_info['Vehicle']} (Total Time: {v_info['TotalTime']:.1f} hrs)"
         ).add_to(m)
 
+    # Add a legend for route types
+    legend_html = """
+         <div style="position: fixed; 
+         bottom: 50px; left: 50px; width: 180px; height: 100px; 
+         border:2px solid grey; z-index:9999; font-size:14px;
+         background-color:white; opacity:0.9;">
+           &nbsp; <b>Route Legend</b> <br>
+           &nbsp; <i style="background:lightgrey; opacity:0.7; border:1px dashed lightgrey;">&nbsp;&nbsp;&nbsp;&nbsp;</i> Initial Plan <br>
+           &nbsp; <i style="background:purple; opacity:0.7;">&nbsp;&nbsp;&nbsp;&nbsp;</i> Vehicle 1 Current <br>
+           &nbsp; <i style="background:darkred; opacity:0.7;">&nbsp;&nbsp;&nbsp;&nbsp;</i> Vehicle 2 Current <br>
+           &nbsp; <i style="background:red; opacity:0.7; border:1px dashed red;">&nbsp;&nbsp;&nbsp;&nbsp;</i> Disrupted Segment
+         </div>
+         """
+    m.get_root().html.add_child(folium.Element(legend_html))
+
+
     html(m._repr_html_(), height=500)
 
 render_dynamic_map(
-    routes_data,
+    initial_routes_data,
+    current_routes_data,
     DEMO_LOCATIONS,
     st.session_state.disruption_segment,
     st.session_state.disruption_factor
 )
 
 st.subheader("Route Details")
-for v_info in routes_data:
+for v_info in current_routes_data:
     st.write(f"**{v_info['Vehicle']}**")
     st.write(f"Current Path: {' → '.join(v_info['Path'])}")
     st.write(f"Total Estimated Time: {v_info['TotalTime']:.1f} hrs")
-    st.write(f"Total Estimated Distance: {v_info['TotalDist']:.1f} miles")
+    # Removed TotalDist as it's not dynamically updated with re-routing
     if v_info.get("Re-routed"):
-        st.markdown("<span style='color: green; font-weight: bold;'>*Route dynamically adjusted!*</span>", unsafe_allow_html=True)
+        st.markdown("<span style='color: green; font-weight: bold;'>✅ Route dynamically adjusted!</span>", unsafe_allow_html=True)
     st.markdown("---")
