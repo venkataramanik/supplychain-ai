@@ -1,0 +1,4 @@
+[runner]
+# Disable automatic page discovery.
+# We will manually define all pages using st.page_link in app.py.
+pages_dir = ""
