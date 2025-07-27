@@ -9,7 +9,7 @@ st.title("SupplyChain.ai")
 st.subheader("AI-Powered Optimization Pilots for Supply Chain & Logistics")
 
 st.markdown("""
-Welcome to **SupplyChain.ai** — a portfolio of interactive prototypes demonstrating how  
+Welcome to **SupplyChain.ai** — a portfolio of interactive prototypes demonstrating how  
 **AI, Machine Learning, and Optimization** can tackle real-world supply chain and logistics challenges.
 """)
 
@@ -20,8 +20,8 @@ st.markdown("""
 ---
 
 ### **About Me**
-Hi, I’m **Venkat Krishnan**, a supply chain transformation leader with 20+ years of experience.  
-I am passionate about blending **business strategy with AI/ML and optimization** to solve  
+Hi, I’m **Venkat Krishnan**, a supply chain transformation leader with 20+ years of experience.  
+I am passionate about blending **business strategy with AI/ML and optimization** to solve  
 challenges in transportation, warehousing, and global trade.
 
 This portfolio highlights:
@@ -50,11 +50,23 @@ I created **SupplyChain.ai** to showcase:
 # ---------------------------------------------------------
 st.markdown("---")
 st.markdown("## **Explore the Pilots**")
+
+st.markdown("### ⚙️ Optimization Models")
+st.markdown("This section showcases how mathematical optimization and AI can be used to find the most efficient solutions for complex supply chain problems, minimizing costs and maximizing efficiency.")
 st.page_link("pages/TransportationSuite.py", label="🚛 Go to Transportation Optimization Suite")
 
 st.markdown("""
-(More pilots — e.g., **Tariff Impact Simulator** and **Network Design Tool** — coming soon!)
+    *(More optimization pilots — e.g., **Network Design Tool**, **Inventory Optimization**, **Warehouse Layout Optimization** — coming soon!)*
 """)
+
+st.markdown("### 📊 Data Analysis & Insights")
+st.markdown("This section demonstrates the power of AI and Machine Learning to extract actionable insights from supply chain data, enabling proactive decision-making and risk mitigation.")
+st.page_link("pages/SupplierRisk.py", label="🛡️ Go to Supplier Performance & Risk Profiling") # Assuming SupplierRisk.py in pages folder
+
+st.markdown("""
+    *(More data analysis pilots — e.g., **Demand Volatility & Predictability Assessment**, **Customer Order Profile Segmentation** — coming soon!)*
+""")
+
 
 # ---------------------------------------------------------
 # Footer
