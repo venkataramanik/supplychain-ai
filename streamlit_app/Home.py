@@ -3,40 +3,39 @@ import streamlit as st
 st.set_page_config(page_title="SupplyChain.ai", layout="wide")
 
 st.title("SupplyChain.ai")
-
 st.subheader("AI-Powered Optimization Pilots for Supply Chain & Logistics")
 
 st.markdown("""
-Welcome to **SupplyChain.ai** — a portfolio of interactive prototypes designed to showcase how  
-**AI, Machine Learning, and Optimization** can solve real-world supply chain and logistics challenges.
+Welcome to **SupplyChain.ai** — a portfolio of interactive prototypes demonstrating how  
+**AI, Machine Learning, and Optimization** can tackle real-world supply chain and logistics challenges.
 
 ---
 
 ### **About Me**
 Hi, I’m **Venkat Krishnan**, a supply chain transformation leader with 20+ years of experience.  
-I’m deeply passionate about applying **AI/ML and mathematical optimization** to solve complex  
-business problems — from **transportation planning** to **network design**.
+I am passionate about blending **business strategy with AI/ML and optimization** to solve  
+challenges in supply chain,transportation, warehousing, and global trade.
 
-This app is a personal project in:
-- **Business problem framing** — connecting logistics pain points with optimization opportunities.
-- **Modern AI & open-source tools** — using Python, OR-Tools, and Streamlit to build rapid prototypes.
-- **Storytelling through data** — explaining not just the “how” but also the **business impact**.
+This portfolio highlights:
+- **Business problem framing** — turning logistics pain points into optimization problems.
+- **Rapid prototyping** with open-source AI/ML and optimization libraries.
+- **Storytelling with data** — explaining how these solutions create measurable business impact.
+
+[Connect with me on LinkedIn](https://www.linkedin.com/in/venkrish1/)
 
 ---
 
 ### **Why I Built This**
-I wanted to show how **quickly AI and optimization pilots can be spun up** when you combine  
-deep domain knowledge with open-source technologies. Each pilot highlights:
-- **The business problem** (e.g., cost reduction, SLA compliance).
-- **KPIs and metrics** to measure impact.
-- **A simple but working optimization demo** (backed by real algorithms).
-- **Fun facts and industry references** (e.g., how UPS saves millions via VRP).
+I created **SupplyChain.ai** to showcase:
+- How quickly we can build **AI-powered pilots** for supply chain problems.
+- The **business value of optimization** (cost savings, SLA compliance, network efficiency).
+- The potential of **open-source tools** like Python, OR-Tools, and Streamlit for enterprise solutions.
 
 ---
 
 ### **Explore the Pilots**
-- **Transportation Optimization Suite** — From shipment mode selection to advanced vehicle routing.
-- More supply chain pilots (e.g., **tariff impact, network design**) coming soon.
+- **Transportation Optimization Suite**  
+  [🚛 **Go to Transportation Optimization Suite**](TransportationSuite.py)
 
-[🚛 **Go to Transportation Optimization Suite**](TransportationSuite.py)
+(More pilots — e.g., **Tariff Impact Simulator** and **Network Design Tool** — coming soon!)
 """)
