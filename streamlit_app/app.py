@@ -3,7 +3,7 @@ import streamlit as st
 st.set_page_config(page_title="SupplyChain.ai", layout="wide")
 
 # ---------------------------------------------------------
-# Custom Sidebar Navigation
+# Custom Sidebar Navigation (This will be the ONLY sidebar content)
 # ---------------------------------------------------------
 with st.sidebar:
     st.title("SupplyChain.ai Pilots")
@@ -11,10 +11,10 @@ with st.sidebar:
 
     st.subheader("⚙️ Optimization Models")
     st.page_link("pages/TransportationSuite.py", label="🚛 Transportation Optimization Suite")
-    st.page_link("pages/ShipmentPlanner_Basic.py", label="📍 Basic Shipment Planner") # Added this from your list
-    st.page_link("pages/ShipmentPlanner_VRP.py", label="🚚 Vehicle Routing Problem (VRP)") # Added this from your list
+    st.page_link("pages/ShipmentPlanner_Basic.py", label="📍 Basic Shipment Planner")
+    st.page_link("pages/ShipmentPlanner_VRP.py", label="🚚 Vehicle Routing Problem (VRP)")
     st.page_link("pages/ShipmentPlanner_VRPTW.py", label="⏰ VRPTW (Time Windows)")
-    st.page_link("pages/ShipmentPlanner_MultiModal.py", label="🚢 Multi-Modal Shipment Planner") # Added this from your list
+    st.page_link("pages/ShipmentPlanner_MultiModal.py", label="🚢 Multi-Modal Shipment Planner")
     st.page_link("pages/ShipmentPlanner_CrossDock.py", label="🔄 Cross-Dock & Multi-Echelon Routing")
     st.page_link("pages/ShipmentPlanner_Dynamic.py", label="⚡ Dynamic Re-Routing")
     st.page_link("pages/NetworkDesign.py", label="🌐 Network Design & Optimization")
@@ -26,7 +26,8 @@ with st.sidebar:
     st.page_link("pages/SupplierRisk.py", label="🛡️ Supplier Performance & Risk Profiling")
 
     st.markdown("---")
-    st.page_link("Home.py", label="🏠 Back to Home Page") # Link back to the main home content
+    # Link back to the main content of this app (streamlit_app.py itself)
+    st.page_link("streamlit_app.py", label="🏠 Back to Home Page") 
 
 
 # ---------------------------------------------------------
@@ -73,36 +74,11 @@ I created **SupplyChain.ai** to showcase:
 """)
 
 # ---------------------------------------------------------
-# Explore Pilots (This section becomes less critical as navigation is in sidebar)
+# Explore Pilots (This section is now redundant as navigation is in sidebar)
 # ---------------------------------------------------------
 st.markdown("---")
 st.markdown("## **Explore the Pilots**")
 st.info("Please use the **sidebar navigation** to explore the different AI-powered pilots.")
-
-# You can keep the below if you want redundant links on the main page,
-# but the primary navigation will now be in the sidebar.
-# I've commented them out to avoid redundancy if the sidebar is sufficient.
-
-# st.markdown("### ⚙️ Optimization Models")
-# st.markdown("This section showcases how mathematical optimization and AI can be used to find the most efficient solutions for complex supply chain problems, minimizing costs and maximizing efficiency.")
-# st.page_link("pages/TransportationSuite.py", label="🚛 Go to Transportation Optimization Suite")
-# st.page_link("pages/ShipmentPlanner_CrossDock.py", label="🔄 Go to Cross-Dock & Multi-Echelon Routing")
-# st.page_link("pages/ShipmentPlanner_Dynamic.py", label="⚡ Go to Dynamic Re-Routing (Real-Time Optimization)")
-# st.page_link("pages/ShipmentPlanner_VRPTW.py", label="⏰ Go to Vehicle Routing Problem with Time Windows (VRPTW)")
-# st.page_link("pages/NetworkDesign.py", label="🌐 Go to Network Design & Optimization")
-
-# st.markdown("""
-#     *(More optimization pilots — e.g., **Inventory Optimization**, **Warehouse Layout Optimization** — coming soon!)*
-# """)
-
-# st.markdown("### 📊 Data Analysis & Insights")
-# st.markdown("This section demonstrates the power of AI and Machine Learning to extract actionable insights from supply chain data, enabling proactive decision-making and risk mitigation.")
-# st.page_link("pages/SupplierRisk.py", label="🛡️ Go to Supplier Performance & Risk Profiling")
-# st.page_link("pages/DemandVolatility.py", label="📈 Go to Demand Volatility & Predictability Assessment")
-
-# st.markdown("""
-#     *(More data analysis pilots — e.g., **Customer Order Profile Segmentation** — coming soon!)*
-# """)
 
 
 # ---------------------------------------------------------
