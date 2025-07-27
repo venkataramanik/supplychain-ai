@@ -312,7 +312,7 @@ with col_kpi2:
 # --- Map Visualization ---
 st.subheader("Visualizing Routes")
 
-@st.cache_data
+# Removed @st.cache_data from render_dynamic_map to ensure it always re-renders
 def render_dynamic_map(initial_routes, current_routes, locations, disruption_segment_viz, disruption_factor_viz):
     m = folium.Map(location=[locations["Warehouse (A)"][0], locations["Warehouse (A)"][1]], zoom_start=11)
 
