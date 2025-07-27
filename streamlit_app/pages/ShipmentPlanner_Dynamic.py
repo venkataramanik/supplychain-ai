@@ -148,7 +148,7 @@ def get_base_travel_times(locations):
 BASE_TRAVEL_TIMES = get_base_travel_times(DEMO_LOCATIONS)
 
 # --- Simulation Logic ---
-@st.cache_data(ttl=1) # Cache for 1 second to allow quick updates
+# Removed @st.cache_data from this function
 def run_dynamic_routing_scenario(disruption_active, disruption_segment, disruption_factor):
     # Initial routes (static plan)
     initial_routes_info = []
@@ -281,7 +281,7 @@ with col_reset:
         st.session_state.disruption_active = False
         st.session_state.disruption_segment = None
         st.session_state.disruption_factor = 1.0
-        st.cache_data.clear() # Clear cache to reset all data
+        # No need to clear cache here as run_dynamic_routing_scenario is no longer cached
 
 # Initialize session state for disruption
 if 'disruption_active' not in st.session_state:
