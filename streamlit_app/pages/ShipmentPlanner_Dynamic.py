@@ -1,25 +1,35 @@
 import streamlit as st
 
+# Set Streamlit page configuration
 st.set_page_config(page_title="Dynamic Re-Routing", layout="wide")
 
+# ---------------------------------------------------------
 # Navigation
+# ---------------------------------------------------------
+# Links to other pages in the Streamlit multi-page app structure
 st.page_link("pages/TransportationSuite.py", label="⬅ Back to Transportation Suite")
 st.page_link("Home.py", label="🏠 Back to Home")
 
-# Image
+# ---------------------------------------------------------
+# Header Image
+# ---------------------------------------------------------
+# Using a placeholder image for visual appeal.
+# In a real app, you might use a custom image from your 'images' folder.
 st.image("https://upload.wikimedia.org/wikipedia/commons/5/59/Map_icon.png",
-         caption="Dynamic re-routing and real-time optimization", use_container_width=True)
+          caption="Dynamic re-routing and real-time optimization", use_container_width=True)
 
-
-
-# --- TITLE ---
+# ---------------------------------------------------------
+# Title
+# ---------------------------------------------------------
 st.title("⚡ Dynamic Re-Routing (Real-Time Optimization)")
 
-# --- BUSINESS CONTEXT ---
+# ---------------------------------------------------------
+# Business Context
+# ---------------------------------------------------------
 st.header("Business Problem")
 st.markdown("""
-Static transportation plans often fail due to **real-time disruptions** like traffic jams, weather, 
-vehicle breakdowns, or last-minute orders. Companies such as **ride-sharing platforms and 
+Static transportation plans often fail due to **real-time disruptions** like traffic jams, weather, 
+vehicle breakdowns, or last-minute orders. Companies such as **ride-sharing platforms and 
 e-commerce giants** rely on **dynamic routing engines** to adjust plans on the fly.
 
 **KPIs Impacted:**
@@ -28,7 +38,9 @@ e-commerce giants** rely on **dynamic routing engines** to adjust plans on the f
 - **Customer satisfaction (NPS).**
 """)
 
-# --- WHY THIS APPROACH ---
+# ---------------------------------------------------------
+# Why This Approach
+# ---------------------------------------------------------
 st.header("Why This Approach?")
 st.markdown("""
 Dynamic re-routing enables:
@@ -37,7 +49,9 @@ Dynamic re-routing enables:
 - **Higher asset utilization** and customer service improvements.
 """)
 
-# --- TOOLS USED ---
+# ---------------------------------------------------------
+# Tools Used
+# ---------------------------------------------------------
 st.header("Tools Used")
 st.markdown("""
 - **OR-Tools (Dynamic VRP):** For continuous re-optimization.
@@ -45,7 +59,9 @@ st.markdown("""
 - **pandas:** To handle route and vehicle state data.
 """)
 
-# --- MATH BEHIND IT ---
+# ---------------------------------------------------------
+# Math Behind It (LaTeX for formulas)
+# ---------------------------------------------------------
 st.header("Math Behind It")
 st.markdown(r"""
 Dynamic VRP is often modeled using **rolling horizon optimization** or **reinforcement learning (RL):**
@@ -58,7 +74,9 @@ Where:
 - **\(r_t\)** is the reward (e.g., minimized delay or cost) at time step t.
 """)
 
-# --- AI & ML ANGLE ---
+# ---------------------------------------------------------
+# AI & ML Angle
+# ---------------------------------------------------------
 st.header("How AI & ML Enhance Dynamic Routing")
 st.markdown("""
 - **Predictive Models:** Real-time ETA predictions using ML models (XGBoost, LSTMs).
@@ -66,13 +84,17 @@ st.markdown("""
 - **LLMs:** Generate quick "what-if" re-routing scenarios when disruptions occur.
 """)
 
-# --- FUN FACT ---
+# ---------------------------------------------------------
+# Fun Fact
+# ---------------------------------------------------------
 st.header("Fun Fact")
 st.markdown("""
-> **Uber's dispatch engine** dynamically reassigns drivers every few seconds, 
+> **Uber's dispatch engine** dynamically reassigns drivers every few seconds, 
 solving a complex VRP variant with real-time events and stochastic demands.
 """)
 
-# --- DEMO PLACEHOLDER ---
+# ---------------------------------------------------------
+# Demo Placeholder
+# ---------------------------------------------------------
 st.header("Demo")
 st.info("Interactive dynamic re-routing demo **coming soon**.")
