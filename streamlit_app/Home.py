@@ -1,32 +1,37 @@
-import streamlit as st
-
-st.set_page_config(page_title="SupplyChain.ai", layout="wide")
-
-st.title("🚀 SupplyChain.ai")
+st.title("SupplyChain.ai")
 st.subheader("AI-Powered Optimization Pilots for Supply Chain & Logistics")
 
 st.markdown("""
-Welcome to **SupplyChain.ai**, a portfolio of prototypes showcasing how 
-**AI, Machine Learning, and Optimization** can solve real-world supply chain challenges.
+Welcome to **SupplyChain.ai** — a portfolio of interactive prototypes designed to showcase how  
+**AI, Machine Learning, and Optimization** can solve real-world supply chain and logistics challenges.
 
-Explore the key pilots below:
+---
+
+### **About Me**
+Hi, I’m **Venkataramani Krishnan**, a supply chain transformation leader with 20+ years of experience.  
+I’m deeply passionate about applying **AI/ML and mathematical optimization** to solve complex  
+business problems — from **transportation planning** to **network design**.
+
+This app is a personal project to **demonstrate my expertise** in:
+- **Business problem framing** — connecting logistics pain points with optimization opportunities.
+- **Modern AI & open-source tools** — using Python, OR-Tools, and Streamlit to build rapid prototypes.
+- **Storytelling through data** — explaining not just the “how” but also the **business impact**.
+
+---
+
+### **Why I Built This**
+I wanted to show how **quickly AI and optimization pilots can be spun up** when you combine  
+deep domain knowledge with open-source technologies. Each pilot highlights:
+- **The business problem** (e.g., cost reduction, SLA compliance).
+- **KPIs and metrics** to measure impact.
+- **A simple but working optimization demo** (backed by real algorithms).
+- **Fun facts and industry references** (e.g., how UPS saves millions via VRP).
+
+---
+
+### **Explore the Pilots**
+- **Transportation Optimization Suite** — From shipment mode selection to advanced vehicle routing.
+- More supply chain pilots (e.g., **tariff impact, network design**) coming soon.
+
+[🚛 **Go to Transportation Optimization Suite**](TransportationSuite.py)
 """)
-
-st.divider()
-
-# --- LINK TO TRANSPORTATION SUITE ---
-st.header("Transportation Optimization Suite")
-st.page_link("pages/TransportationSuite.py", label="🚛 Go to Transportation Optimization Suite")
-
-st.divider()
-
-# --- DIRECT LINKS TO PILOTS ---
-st.header("Direct Pilot Links")
-st.page_link("pages/ShipmentPlanner_Basic.py", label="1. Rating & Mode Selection (Cost Engine)")
-st.page_link("pages/ShipmentPlanner_VRP.py", label="2. Multi-Stop Routing (VRP)")
-st.page_link("pages/ShipmentPlanner_VRPTW.py", label="3. Time Windows & SLA (VRPTW)")
-st.page_link("pages/ShipmentPlanner_CrossDock.py", label="4. Cross-Dock & Multi-Echelon")
-st.page_link("pages/ShipmentPlanner_MultiModal.py", label="5. Multi-Modal & Green Logistics")
-st.page_link("pages/ShipmentPlanner_Dynamic.py", label="6. Dynamic Re-Routing")
-
-st.info("More pilots and demos coming soon.")
