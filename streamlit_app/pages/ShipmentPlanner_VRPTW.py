@@ -1,5 +1,4 @@
 import random
-import math
 import pandas as pd
 import numpy as np
 import streamlit as st
@@ -19,8 +18,8 @@ with st.sidebar:
     vehicle_capacity = st.slider("Vehicle capacity (units)", 50, 500, 150, 10)
     random_seed = st.number_input("Random seed", value=42, step=1)
 
-random.seed(random_seed)
-np.random.seed(random_seed)
+random.seed(int(random_seed))
+np.random.seed(int(random_seed))
 
 # ---------------------------------------------------------
 # Generate Customer Data with Time Windows
@@ -34,9 +33,9 @@ CITIES = [
 def generate_customers(n: int):
     selected = random.sample(CITIES, n)
     demands = np.random.randint(5, 31, size=n)
-    start_times = np.random.randint(8, 16, size=n)  # time window start in hours
-    end_times = start_times + np.random.randint(1, 4, size=n)  # time window end in hours
-    service_times = np.random.randint(15, 45, size=n)  # service time in minutes
+    start_times = np.random.randint(8, 16, size=n)  # hours
+    end_times = start_times + np.random.randint(1, 4, size=n)  # 1-3 hr windows
+    service_times = np.random.randint(15, 45, size=n)  # minutes
     return selected, demands, start_times, end_times, service_times
 
 customer_names, demands, start_times, end_times, service_times = generate_customers(num_customers)
@@ -55,7 +54,7 @@ st.dataframe(customers_df, use_container_width=True)
 # Create Distance Matrix
 # ---------------------------------------------------------
 def create_distance_matrix(n: int):
-    rng = np.random.default_rng(random_seed)
+    rng = np.random.default_rng(int(random_seed))
     matrix = rng.integers(5, 40, size=(n + 1, n + 1))  # depot + n customers
     np.fill_diagonal(matrix, 0)
     return matrix.tolist()
@@ -105,10 +104,10 @@ def solve_vrptw(distance_matrix,
     time_index = routing.RegisterTransitCallback(time_callback)
     routing.AddDimension(
         time_index,
-        slack_max=30,
-        capacity=horizon_minutes,
-        start_cumul_to_zero=False,
-        name="Time"
+        int(30),
+        int(horizon_minutes),
+        False,
+        "Time"
     )
     time_dim = routing.GetDimensionOrDie("Time")
 
@@ -116,8 +115,8 @@ def solve_vrptw(distance_matrix,
     for v in range(num_vehicles):
         start_idx = routing.Start(v)
         end_idx = routing.End(v)
-        time_dim.CumulVar(start_idx).SetRange(0, horizon_minutes)
-        time_dim.CumulVar(end_idx).SetRange(0, horizon_minutes)
+        time_dim.CumulVar(start_idx).SetRange(0, int(horizon_minutes))
+        time_dim.CumulVar(end_idx).SetRange(0, int(horizon_minutes))
 
     # Customer time windows
     for cust in range(1, n_nodes):
@@ -178,33 +177,51 @@ total_distance = sum(
     for v in range(num_vehicles) if len(routes[v]) > 1
 )
 vehicles_used = sum(1 for v in routes if len(v) > 1)
-st.metric("Vehicles used", f"{vehicles_used} / {num_vehicles}")
-st.metric("Total distance (approx)", f"{total_distance} units")
 
 # ---------------------------------------------------------
-# Build Gantt Chart Data
+# Build Gantt Chart Data + SLA
 # ---------------------------------------------------------
 gantt_data = []
+on_time, late = 0, 0
 for v, route in enumerate(routes):
     for step in route[1:]:
         node, start_time = step
         if node == 0:
             continue
+        window_start = start_times[node - 1] * 60
+        window_end = end_times[node - 1] * 60
+        is_on_time = window_start <= start_time <= window_end
+        if is_on_time:
+            on_time += 1
+        else:
+            late += 1
         gantt_data.append({
             "Vehicle": f"Vehicle {v+1}",
             "Customer": customer_names[node - 1],
             "Start": start_time,
-            "End": start_time + service_times[node - 1]
+            "End": start_time + service_times[node - 1],
+            "OnTime": "Yes" if is_on_time else "Late"
         })
 
 gantt_df = pd.DataFrame(gantt_data)
+
+c1, c2, c3 = st.columns(3)
+c1.metric("Vehicles used", f"{vehicles_used} / {num_vehicles}")
+c2.metric("Total distance (approx)", f"{total_distance} units")
+c3.metric("On-Time Deliveries", f"{on_time} / {on_time + late}")
+
+# ---------------------------------------------------------
+# Gantt Chart
+# ---------------------------------------------------------
 st.subheader("⏳ Delivery Schedule (Gantt Chart)")
 chart = alt.Chart(gantt_df).mark_bar().encode(
     x='Start:Q',
     x2='End:Q',
     y='Vehicle:N',
-    color='Vehicle:N',
-    tooltip=['Customer', 'Start', 'End']
+    color=alt.condition(alt.datum.OnTime == "Yes",
+                        alt.value('green'),
+                        alt.value('red')),
+    tooltip=['Customer', 'Start', 'End', 'OnTime']
 ).properties(height=300)
 st.altair_chart(chart, use_container_width=True)
 
@@ -221,7 +238,7 @@ The goal is to minimize distance while **meeting all time windows**.
 **Key KPIs:**  
 - Number of vehicles used.  
 - Total travel distance.  
-- SLA compliance (on-time deliveries).  
+- SLA compliance (on-time vs late deliveries).  
 
 **Fun Fact:**  
 Amazon’s “Same Day” delivery and grocery logistics are **real-world VRPTW problems** — they require aligning driver routes with customer availability.
