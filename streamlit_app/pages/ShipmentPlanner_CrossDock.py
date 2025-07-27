@@ -164,8 +164,10 @@ ALL_LOCATIONS = {**PLANTS, **CROSS_DOCKS, **CUSTOMERS}
 
 # Base travel speed (mph)
 TRAVEL_SPEED_MPH = 50
-# Cost per mile per unit volume (simplified)
-COST_PER_MILE_PER_CBM = 0.8
+
+# Differentiated Costs for Direct vs. Cross-Dock Legs
+DIRECT_COST_PER_MILE_PER_CBM = 0.8 # Higher cost for direct (simulating LTL or less efficient)
+CROSS_DOCK_LINE_HAUL_COST_PER_MILE_PER_CBM = 0.3 # Lower cost for cross-dock legs (simulating FTL/rail efficiency)
 
 
 # --- Shipment Generation ---
@@ -221,7 +223,7 @@ def evaluate_cross_dock_routes(shipments_df, cross_dock_cost_per_cbm, cross_dock
         # Option 1: Direct Route
         direct_dist = haversine_miles(origin_coords[0], origin_coords[1],
                                       destination_coords[0], destination_coords[1])
-        direct_cost = direct_dist * COST_PER_MILE_PER_CBM * volume
+        direct_cost = direct_dist * DIRECT_COST_PER_MILE_PER_CBM * volume # Use DIRECT_COST
         direct_time = direct_dist / TRAVEL_SPEED_MPH
 
         if direct_time <= deadline:
@@ -235,13 +237,13 @@ def evaluate_cross_dock_routes(shipments_df, cross_dock_cost_per_cbm, cross_dock
             # Plant to Cross-Dock leg
             plant_to_cd_dist = haversine_miles(origin_coords[0], origin_coords[1],
                                                cd_coords[0], cd_coords[1])
-            plant_to_cd_cost = plant_to_cd_dist * COST_PER_MILE_PER_CBM * volume
+            plant_to_cd_cost = plant_to_cd_dist * CROSS_DOCK_LINE_HAUL_COST_PER_MILE_PER_CBM * volume # Use CROSS_DOCK_LINE_HAUL_COST
             plant_to_cd_time = plant_to_cd_dist / TRAVEL_SPEED_MPH
 
             # Cross-Dock to Customer leg
             cd_to_customer_dist = haversine_miles(cd_coords[0], cd_coords[1],
                                                   destination_coords[0], destination_coords[1])
-            cd_to_customer_cost = cd_to_customer_dist * COST_PER_MILE_PER_CBM * volume
+            cd_to_customer_cost = cd_to_customer_dist * CROSS_DOCK_LINE_HAUL_COST_PER_MILE_PER_CBM * volume # Use CROSS_DOCK_LINE_HAUL_COST
             cd_to_customer_time = cd_to_customer_dist / TRAVEL_SPEED_MPH
 
             # Total for cross-dock route
@@ -275,8 +277,9 @@ col_params, col_buttons = st.columns([0.7, 0.3])
 
 with col_params:
     num_shipments = st.slider("Number of Shipments", 5, 50, 20, 1)
-    cross_dock_cost_per_cbm = st.slider("Cross-Docking Cost per CBM ($)", 0.0, 50.0, 10.0, 1.0)
-    cross_dock_time_hrs = st.slider("Cross-Docking Time per Shipment (hrs)", 0.0, 24.0, 4.0, 1.0)
+    # Adjusted default values to encourage cross-docking
+    cross_dock_cost_per_cbm = st.slider("Cross-Docking Handling Cost per CBM ($)", 0.0, 50.0, 5.0, 1.0) # Lowered default
+    cross_dock_time_hrs = st.slider("Cross-Docking Handling Time (hrs)", 0.0, 24.0, 2.0, 1.0) # Lowered default
     
     # Data seed control
     data_seed = st.number_input("Data Random Seed (0 for new data each refresh)", value=0, step=1, help="Enter a number for reproducible data, or set to 0 for new data on each refresh.")
