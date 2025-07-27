@@ -1,4 +1,34 @@
-[runner]
-# Disable automatic page discovery.
-# We will manually define all pages using st.page_link in app.py.
-pages_dir = ""
+[[pages]]
+path = "Home.py"
+name = "Home"
+icon = "🏠"
+
+[[pages]]
+path = "pages/1_TransportationSuite.py"
+name = "Transportation Suite"
+icon = "🚛"
+
+[[pages]]
+path = "pages/2_ShipmentPlanner_Basic.py"
+name = "Shipment Planner – Basic"
+icon = "📦"
+
+[[pages]]
+name = "Advanced Pilots"
+icon = "🚀"
+is_section = true
+
+[[pages]]
+path = "pages/3_ShipmentPlanner_VRP.py"
+name = "VRP Optimization"
+icon = "🛻"
+
+[[pages]]
+path = "pages/4_ShipmentPlanner_VRPTW.py"
+name = "VRPTW – Time Windows"
+icon = "⏱"
+
+[[pages]]
+path = "pages/5_ShipmentPlanner_MultiModal.py"
+name = "Multi-Modal Planner"
+icon = "🚢"
