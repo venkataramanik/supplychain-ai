@@ -1,4 +1,9 @@
+import streamlit as st
+
+st.set_page_config(page_title="SupplyChain.ai", layout="wide")
+
 st.title("SupplyChain.ai")
+
 st.subheader("AI-Powered Optimization Pilots for Supply Chain & Logistics")
 
 st.markdown("""
@@ -8,11 +13,11 @@ Welcome to **SupplyChain.ai** — a portfolio of interactive prototypes designed
 ---
 
 ### **About Me**
-Hi, I’m **Venkataramani Krishnan**, a supply chain transformation leader with 20+ years of experience.  
+Hi, I’m **Venkat Krishnan**, a supply chain transformation leader with 20+ years of experience.  
 I’m deeply passionate about applying **AI/ML and mathematical optimization** to solve complex  
 business problems — from **transportation planning** to **network design**.
 
-This app is a personal project to **demonstrate my expertise** in:
+This app is a personal project in:
 - **Business problem framing** — connecting logistics pain points with optimization opportunities.
 - **Modern AI & open-source tools** — using Python, OR-Tools, and Streamlit to build rapid prototypes.
 - **Storytelling through data** — explaining not just the “how” but also the **business impact**.
