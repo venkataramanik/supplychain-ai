@@ -12,7 +12,7 @@ st.set_page_config(page_title="SupplyChain.ai — Network Design", layout="wide"
 # ---------------------------------------------------------
 # Navigation
 # ---------------------------------------------------------
-st.page_link("pages/TransportationSuite.py", label="⬅ Back to Transportation Suite")
+# Removed: st.page_link("pages/TransportationSuite.py", label="⬅ Back to Transportation Suite")
 st.page_link("Home.py", label="🏠 Back to Home")
 
 # ---------------------------------------------------------
