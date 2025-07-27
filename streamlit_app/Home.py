@@ -62,6 +62,8 @@ st.markdown("""
 st.markdown("### 📊 Data Analysis & Insights")
 st.markdown("This section demonstrates the power of AI and Machine Learning to extract actionable insights from supply chain data, enabling proactive decision-making and risk mitigation.")
 st.page_link("pages/SupplierRisk.py", label="🛡️ Go to Supplier Performance & Risk Profiling") # Assuming SupplierRisk.py in pages folder
+st.page_link("pages/DemandVolatility.py", label="📈 Go to Demand Volatility & Predictability Assessment") # New pilot link
+
 
 st.markdown("""
     *(More data analysis pilots — e.g., **Demand Volatility & Predictability Assessment**, **Customer Order Profile Segmentation** — coming soon!)*
