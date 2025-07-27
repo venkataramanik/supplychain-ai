@@ -1,38 +1,37 @@
 import streamlit as st
+from st_pages import Page, Section, add_page_title, add_pages_with_data
 
 st.set_page_config(page_title="SupplyChain.ai", layout="wide")
 
-# ---------------------------------------------------------
-# Custom Sidebar Navigation (This will be the ONLY sidebar content)
-# ---------------------------------------------------------
-with st.sidebar:
-    st.title("SupplyChain.ai Pilots")
-    st.markdown("---")
+# This adds the title to the current page (Home) and sets up the sidebar structure.
+# It MUST be called before any other st.sidebar calls or page_link calls.
+add_page_title()
 
-    st.subheader("⚙️ Optimization Models")
-    st.page_link("pages/TransportationSuite.py", label="🚛 Transportation Optimization Suite")
-    st.page_link("pages/ShipmentPlanner_Basic.py", label="📍 Basic Shipment Planner")
-    st.page_link("pages/ShipmentPlanner_VRP.py", label="🚚 Vehicle Routing Problem (VRP)")
-    st.page_link("pages/ShipmentPlanner_VRPTW.py", label="⏰ VRPTW (Time Windows)")
-    st.page_link("pages/ShipmentPlanner_MultiModal.py", label="🚢 Multi-Modal Shipment Planner")
-    st.page_link("pages/ShipmentPlanner_CrossDock.py", label="🔄 Cross-Dock & Multi-Echelon Routing")
-    st.page_link("pages/ShipmentPlanner_Dynamic.py", label="⚡ Dynamic Re-Routing")
-    st.page_link("pages/NetworkDesign.py", label="🌐 Network Design & Optimization")
-    
-    st.markdown("---")
-    
-    st.subheader("📊 Data Analysis & Insights")
-    st.page_link("pages/DemandVolatility.py", label="📈 Demand Volatility Assessment")
-    st.page_link("pages/SupplierRisk.py", label="🛡️ Supplier Performance & Risk Profiling")
+# Define your pages and their structure using st_pages
+add_pages_with_data(
+    [
+        # Main Home Page (this file itself)
+        Page("app.py", "🏠 Home", "house"), # The icon is optional
 
-    st.markdown("---")
-    # Corrected link back to the main content of this app (app.py itself)
-    st.page_link("app.py", label="🏠 Back to Home Page")
+        # Optimization Models Section
+        Section("⚙️ Optimization Models", "gear"),
+        Page("pages/TransportationSuite.py", "🚛 Transportation Optimization Suite"),
+        Page("pages/ShipmentPlanner_Basic.py", "📍 Basic Shipment Planner"),
+        Page("pages/ShipmentPlanner_VRP.py", "🚚 Vehicle Routing Problem (VRP)"),
+        Page("pages/ShipmentPlanner_VRPTW.py", "⏰ VRPTW (Time Windows)"),
+        Page("pages/ShipmentPlanner_MultiModal.py", "🚢 Multi-Modal Shipment Planner"),
+        Page("pages/ShipmentPlanner_CrossDock.py", "🔄 Cross-Dock & Multi-Echelon Routing"),
+        Page("pages/ShipmentPlanner_Dynamic.py", "⚡ Dynamic Re-Routing"),
+        Page("pages/NetworkDesign.py", "🌐 Network Design & Optimization"),
+        
+        # Data Analysis & Insights Section
+        Section("📊 Data Analysis & Insights", "bar_chart"),
+        Page("pages/DemandVolatility.py", "📈 Demand Volatility Assessment"),
+        Page("pages/SupplierRisk.py", "🛡️ Supplier Performance & Risk Profiling"),
+    ]
+)
 
-
-# ---------------------------------------------------------
-# Main Content (Home Page)
-# ---------------------------------------------------------
+# The rest of your main content for the Home page
 st.title("SupplyChain.ai")
 st.subheader("AI-Powered Optimization Pilots for Supply Chain & Logistics")
 
