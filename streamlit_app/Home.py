@@ -53,20 +53,23 @@ st.markdown("## **Explore the Pilots**")
 
 st.markdown("### ⚙️ Optimization Models")
 st.markdown("This section showcases how mathematical optimization and AI can be used to find the most efficient solutions for complex supply chain problems, minimizing costs and maximizing efficiency.")
-st.page_link("pages/TransportationSuite.py", label="🚛 Go to Transportation Optimization Suite")
+st.page_link("pages/TransportationSuite.py", label="🚛 Go to Transportation Optimization Suite") # Updated as requested
+st.page_link("pages/CrossDock.py", label="🔄 Go to Cross-Dock & Multi-Echelon Routing")
+st.page_link("pages/DynamicReRouting.py", label="⚡ Go to Dynamic Re-Routing (Real-Time Optimization)")
+st.page_link("pages/VRPTW.py", label="⏰ Go to Vehicle Routing Problem with Time Windows (VRPTW)")
+st.page_link("pages/NetworkDesign.py", label="🌐 Go to Network Design & Optimization")
 
 st.markdown("""
-    *(More optimization pilots — e.g., **Network Design Tool**, **Inventory Optimization**, **Warehouse Layout Optimization** — coming soon!)*
+    *(More optimization pilots — e.g., **Inventory Optimization**, **Warehouse Layout Optimization** — coming soon!)*
 """)
 
 st.markdown("### 📊 Data Analysis & Insights")
 st.markdown("This section demonstrates the power of AI and Machine Learning to extract actionable insights from supply chain data, enabling proactive decision-making and risk mitigation.")
-st.page_link("pages/SupplierRisk.py", label="🛡️ Go to Supplier Performance & Risk Profiling") # Assuming SupplierRisk.py in pages folder
-st.page_link("pages/DemandVolatility.py", label="📈 Go to Demand Volatility & Predictability Assessment") # New pilot link
-
+st.page_link("pages/SupplierRisk.py", label="🛡️ Go to Supplier Performance & Risk Profiling")
+st.page_link("pages/DemandVolatility.py", label="📈 Go to Demand Volatility & Predictability Assessment")
 
 st.markdown("""
-    *(More data analysis pilots — e.g., **Demand Volatility & Predictability Assessment**, **Customer Order Profile Segmentation** — coming soon!)*
+    *(More data analysis pilots — e.g., **Customer Order Profile Segmentation** — coming soon!)*
 """)
 
 
