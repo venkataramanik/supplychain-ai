@@ -11,6 +11,19 @@ import time
 st.set_page_config(page_title="SupplyChain.ai — Cross-Dock Routing", layout="wide")
 
 # ---------------------------------------------------------
+# Haversine distance function (moved to top for global accessibility)
+# ---------------------------------------------------------
+def haversine_miles(lat1, lon1, lat2, lon2) -> float:
+    R = 3958.8  # Earth radius in miles
+    phi1 = math.radians(lat1)
+    phi2 = math.radians(lat2)
+    dphi = math.radians(lat2 - lat1)
+    dlambda = math.radians(lon2 - lon1)
+    a = (math.sin(dphi / 2.0) ** 2 +
+         math.cos(phi1) * math.cos(phi2) * math.sin(dlambda / 2.0) ** 2)
+    return 2 * R * math.asin(math.sqrt(a))
+
+# ---------------------------------------------------------
 # Navigation
 # ---------------------------------------------------------
 st.page_link("pages/TransportationSuite.py", label="⬅ Back to Transportation Suite")
@@ -154,10 +167,9 @@ TRAVEL_SPEED_MPH = 50
 # Cost per mile per unit volume (simplified)
 COST_PER_MILE_PER_CBM = 0.8
 
-# Haversine distance function (miles) - already defined above
 
 # --- Shipment Generation ---
-@st.cache_data
+# Removed @st.cache_data from this function
 def generate_cross_dock_shipments(n: int, seed: int = None) -> pd.DataFrame:
     if seed is not None:
         random.seed(seed)
