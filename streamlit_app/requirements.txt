@@ -11,4 +11,4 @@ pydeck
 altair
 streamlit-folium
 folium
-st-pages
+st_pages
