@@ -26,8 +26,8 @@ with st.sidebar:
     st.page_link("pages/SupplierRisk.py", label="🛡️ Supplier Performance & Risk Profiling")
 
     st.markdown("---")
-    # Link back to the main content of this app (streamlit_app.py itself)
-    st.page_link("streamlit_app.py", label="🏠 Back to Home Page") 
+    # Corrected link back to the main content of this app (app.py itself)
+    st.page_link("app.py", label="🏠 Back to Home Page")
 
 
 # ---------------------------------------------------------
