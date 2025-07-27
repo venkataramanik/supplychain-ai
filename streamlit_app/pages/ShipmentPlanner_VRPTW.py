@@ -7,7 +7,7 @@ import altair as alt
 from ortools.constraint_solver import pywrapcp, routing_enums_pb2
 
 st.set_page_config(page_title="VRPTW — Vehicle Routing with Time Windows", layout="wide")
-st.title("⏱ Pilot 3 — Vehicle Routing with Time Windows (VRPTW)")
+st.title("Vehicle Routing with Time Windows (VRPTW)")
 
 # ---------------------------------------------------------
 # Sidebar Controls
@@ -34,9 +34,9 @@ CITIES = [
 def generate_customers(n: int):
     selected = random.sample(CITIES, n)
     demands = np.random.randint(5, 31, size=n)
-    start_times = np.random.randint(8, 16, size=n)  # start window between 8AM-4PM
-    end_times = start_times + np.random.randint(1, 4, size=n)  # 1-3 hr windows
-    service_times = np.random.randint(15, 45, size=n)  # 15-45 min per stop
+    start_times = np.random.randint(8, 16, size=n)  # time window start in hours
+    end_times = start_times + np.random.randint(1, 4, size=n)  # time window end in hours
+    service_times = np.random.randint(15, 45, size=n)  # service time in minutes
     return selected, demands, start_times, end_times, service_times
 
 customer_names, demands, start_times, end_times, service_times = generate_customers(num_customers)
@@ -52,10 +52,9 @@ st.subheader("📦 Customers & Time Windows")
 st.dataframe(customers_df, use_container_width=True)
 
 # ---------------------------------------------------------
-# VRPTW Solver using OR-Tools
+# Create Distance Matrix
 # ---------------------------------------------------------
 def create_distance_matrix(n: int):
-    # Simple synthetic distances
     rng = np.random.default_rng(random_seed)
     matrix = rng.integers(5, 40, size=(n + 1, n + 1))  # depot + n customers
     np.fill_diagonal(matrix, 0)
@@ -63,60 +62,107 @@ def create_distance_matrix(n: int):
 
 distance_matrix = create_distance_matrix(num_customers)
 
-def solve_vrptw(distance_matrix, demands, starts, ends, service_times, num_vehicles, capacity):
-    manager = pywrapcp.RoutingIndexManager(len(distance_matrix), num_vehicles, 0)
+# ---------------------------------------------------------
+# VRPTW Solver
+# ---------------------------------------------------------
+def solve_vrptw(distance_matrix,
+                demands,
+                starts,
+                ends,
+                service_times,
+                num_vehicles,
+                capacity,
+                horizon_minutes: int = 24 * 60):
+
+    n_customers = len(demands)
+    n_nodes = n_customers + 1  # depot + customers
+
+    manager = pywrapcp.RoutingIndexManager(n_nodes, num_vehicles, 0)
     routing = pywrapcp.RoutingModel(manager)
 
-    # Distance callback
     def distance_callback(from_index, to_index):
-        return distance_matrix[manager.IndexToNode(from_index)][manager.IndexToNode(to_index)]
+        f = manager.IndexToNode(from_index)
+        t = manager.IndexToNode(to_index)
+        return int(distance_matrix[f][t])
+
     transit_index = routing.RegisterTransitCallback(distance_callback)
     routing.SetArcCostEvaluatorOfAllVehicles(transit_index)
 
-    # Capacity constraint
     def demand_callback(from_index):
         node = manager.IndexToNode(from_index)
-        return 0 if node == 0 else demands[node - 1]
+        return 0 if node == 0 else int(demands[node - 1])
     demand_index = routing.RegisterUnaryTransitCallback(demand_callback)
-    routing.AddDimensionWithVehicleCapacity(demand_index, 0, [capacity] * num_vehicles, True, "Capacity")
+    routing.AddDimensionWithVehicleCapacity(
+        demand_index, 0, [int(capacity)] * num_vehicles, True, "Capacity"
+    )
 
-    # Time Windows
     def time_callback(from_index, to_index):
-        return distance_callback(from_index, to_index) + (service_times[manager.IndexToNode(from_index) - 1]
-                                                          if manager.IndexToNode(from_index) > 0 else 0)
+        f = manager.IndexToNode(from_index)
+        travel = distance_matrix[f][manager.IndexToNode(to_index)]
+        service = 0 if f == 0 else service_times[f - 1]
+        return int(travel + service)
+
     time_index = routing.RegisterTransitCallback(time_callback)
-    horizon = 24 * 60  # 24 hours in minutes
-    routing.AddDimension(time_index, 30, horizon, False, "Time")
-    time_dimension = routing.GetDimensionOrDie("Time")
+    routing.AddDimension(
+        time_index,
+        slack_max=30,
+        capacity=horizon_minutes,
+        start_cumul_to_zero=False,
+        name="Time"
+    )
+    time_dim = routing.GetDimensionOrDie("Time")
 
-    for i in range(1, len(distance_matrix)):
-        start = starts[i - 1] * 60
-        end = ends[i - 1] * 60
-        time_dimension.CumulVar(manager.NodeToIndex(i)).SetRange(start, end)
+    # Depot time window
+    for v in range(num_vehicles):
+        start_idx = routing.Start(v)
+        end_idx = routing.End(v)
+        time_dim.CumulVar(start_idx).SetRange(0, horizon_minutes)
+        time_dim.CumulVar(end_idx).SetRange(0, horizon_minutes)
 
-    search_params = pywrapcp.DefaultRoutingSearchParameters()
-    search_params.first_solution_strategy = routing_enums_pb2.FirstSolutionStrategy.PATH_CHEAPEST_ARC
-    search_params.time_limit.FromSeconds(5)
+    # Customer time windows
+    for cust in range(1, n_nodes):
+        start_min = int(starts[cust - 1] * 60)
+        end_min = int(ends[cust - 1] * 60)
+        index = manager.NodeToIndex(cust)
+        time_dim.CumulVar(index).SetRange(start_min, end_min)
 
-    solution = routing.SolveWithParameters(search_params)
+    params = pywrapcp.DefaultRoutingSearchParameters()
+    params.first_solution_strategy = routing_enums_pb2.FirstSolutionStrategy.PATH_CHEAPEST_ARC
+    params.local_search_metaheuristic = routing_enums_pb2.LocalSearchMetaheuristic.GUIDED_LOCAL_SEARCH
+    params.time_limit.FromSeconds(10)
+
+    solution = routing.SolveWithParameters(params)
     if not solution:
         return None
 
-    # Extract routes
     routes = []
     for v in range(num_vehicles):
-        index = routing.Start(v)
-        vehicle_route = []
-        while not routing.IsEnd(index):
-            node = manager.IndexToNode(index)
-            time_var = time_dimension.CumulVar(index)
-            time_min = solution.Min(time_var)
-            vehicle_route.append((node, time_min))
-            index = solution.Value(routing.NextVar(index))
-        routes.append(vehicle_route)
+        idx = routing.Start(v)
+        veh_route = []
+        while not routing.IsEnd(idx):
+            node = manager.IndexToNode(idx)
+            t = solution.Value(time_dim.CumulVar(idx))
+            veh_route.append((node, t))
+            idx = solution.Value(routing.NextVar(idx))
+        node = manager.IndexToNode(idx)
+        t = solution.Value(time_dim.CumulVar(idx))
+        veh_route.append((node, t))
+        routes.append(veh_route)
+
     return routes
 
-routes = solve_vrptw(distance_matrix, demands, start_times, end_times, service_times, num_vehicles, vehicle_capacity)
+# ---------------------------------------------------------
+# Solve
+# ---------------------------------------------------------
+routes = solve_vrptw(
+    distance_matrix=distance_matrix,
+    demands=demands,
+    starts=start_times,
+    ends=end_times,
+    service_times=service_times,
+    num_vehicles=num_vehicles,
+    capacity=vehicle_capacity
+)
 
 if not routes:
     st.error("No feasible solution found. Try adjusting vehicle capacity or time windows.")
@@ -126,9 +172,11 @@ if not routes:
 # KPIs
 # ---------------------------------------------------------
 st.subheader("📈 KPIs")
-total_distance = sum(sum(distance_matrix[routes[v][i][0]][routes[v][i+1][0]]
-                         for i in range(len(routes[v]) - 1))
-                     for v in range(num_vehicles) if len(routes[v]) > 1)
+total_distance = sum(
+    sum(distance_matrix[routes[v][i][0]][routes[v][i + 1][0]]
+        for i in range(len(routes[v]) - 1))
+    for v in range(num_vehicles) if len(routes[v]) > 1
+)
 vehicles_used = sum(1 for v in routes if len(v) > 1)
 st.metric("Vehicles used", f"{vehicles_used} / {num_vehicles}")
 st.metric("Total distance (approx)", f"{total_distance} units")
