@@ -11,5 +11,4 @@ pydeck
 altair
 streamlit-folium
 folium
-streamlit-pages
 streamlit-shadcn-ui
