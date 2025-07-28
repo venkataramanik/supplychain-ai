@@ -12,3 +12,4 @@ altair
 streamlit-folium
 folium
 st_pages
+streamlit-shadcn-ui
