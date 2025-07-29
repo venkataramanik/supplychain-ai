@@ -142,4 +142,211 @@ class WarehouseEnv:
 
         # Mark items
         for item_id, (r, c) in self.items.items():
-            if
+            if item_id in self.items_to_pick and item_id not in self.picked_items:
+                ax.text(c, r, f'I{item_id}', color='red', ha='center', va='center', fontsize=9, fontweight='bold')
+                ax.add_patch(plt.Circle((c, r), 0.4, color='orange', alpha=0.6))
+            elif item_id in self.picked_items:
+                 ax.text(c, r, f'I{item_id}', color='green', ha='center', va='center', fontsize=9, fontweight='bold')
+                 ax.add_patch(plt.Circle((c, r), 0.4, color='lightgreen', alpha=0.6))
+            else: # Items not in current order
+                ax.text(c, r, f'I{item_id}', color='gray', ha='center', va='center', fontsize=9)
+                ax.add_patch(plt.Circle((c, r), 0.4, color='lightgray', alpha=0.3))
+
+
+        # Mark picker current position
+        ax.text(self.current_pos[1], self.current_pos[0], '🤖', ha='center', va='center', fontsize=18)
+        
+        # Draw path if provided
+        if path:
+            xs = [p[1] for p in path]
+            ys = [p[0] for p in path]
+            ax.plot(xs, ys, 'b-o', alpha=0.7, markersize=5, linewidth=2)
+
+
+        ax.set_title(f"Warehouse State (Picked: {len(self.picked_items)}/{len(self.items_to_pick)})")
+        ax.axis('off')
+
+# --- Q-Learning Function ---
+# Now takes hashable parameters (grid_size, etc.)
+@st.cache_resource(show_spinner="Training AI Agent (Q-Learning)... This may take a moment.")
+def train_q_agent(grid_size, num_episodes=5000, learning_rate=0.1, discount_factor=0.99, epsilon_decay=0.995, min_epsilon=0.01):
+    # Create the environment INSIDE the cached function
+    env = WarehouseEnv(size=(grid_size, grid_size))
+
+    # Q-table shape uses env properties for consistency
+    q_table = np.zeros((env.rows, env.cols, env.state_space_size[2], len(env.action_space)))
+    epsilon = 1.0 # Exploration-exploitation trade-off
+
+    st.write(f"Starting Q-Learning training for {num_episodes} episodes...")
+    st.write(f"Q-table shape: {q_table.shape}")
+
+    # Use a Streamlit progress bar
+    progress_bar = st.progress(0)
+    status_text = st.empty()
+
+    for episode in range(num_episodes):
+        # For training, let's use a fixed small set of item IDs for consistency in the item mask
+        # but their positions will be randomized. This is a simplification for stable training.
+        train_order_items = ['A', 'B'] # Example small order for training consistency
+
+        # Generate item positions relative to the env size
+        train_item_positions = {
+            'A': (random.randint(0, env.rows-1), random.randint(0, env.cols-1)),
+            'B': (random.randint(0, env.rows-1), random.randint(0, env.cols-1)),
+            'C': (random.randint(0, env.rows-1), random.randint(0, env.cols-1)),
+            'D': (random.randint(0, env.rows-1), random.randint(0, env.cols-1))
+        }
+
+        # Reset the environment for a new episode
+        state_r, state_c, state_item_mask = env.reset(train_item_positions, train_order_items)
+        done = False
+
+        while not done:
+            if random.uniform(0, 1) < epsilon:
+                action_idx = random.randrange(len(env.action_space)) # Explore action space
+            else:
+                action_idx = np.argmax(q_table[state_r, state_c, state_item_mask, :]) # Exploit learned values
+            
+            # Take action and observe new state and reward
+            new_state, reward, done = env.step(action_idx)
+            new_state_r, new_state_c, new_state_item_mask = new_state
+
+            # Q-learning update rule
+            old_value = q_table[state_r, state_c, state_item_mask, action_idx]
+            next_max = np.max(q_table[new_state_r, new_state_c, new_state_item_mask, :])
+
+            new_value = (1 - learning_rate) * old_value + learning_rate * (reward + discount_factor * next_max)
+            q_table[state_r, state_c, state_item_mask, action_idx] = new_value
+
+            state_r, state_c, state_item_mask = new_state_r, new_state_c, new_state_item_mask
+
+        # Epsilon decay
+        epsilon = max(min_epsilon, epsilon * epsilon_decay)
+
+        if (episode + 1) % 100 == 0:
+            status_text.text(f"Training Episode {episode + 1}/{num_episodes} (Epsilon: {epsilon:.2f})")
+            progress_bar.progress((episode + 1) / num_episodes)
+    
+    st.success("Q-Learning Training Complete!")
+    return q_table
+
+# --- Streamlit App Logic ---
+
+# Sidebar for controls
+st.sidebar.header("Simulation Settings")
+grid_size = st.sidebar.slider("Warehouse Size (N x N)", 5, 20, 10)
+num_total_items = st.sidebar.slider("Number of Total Items in Warehouse", 5, 20, 8)
+# --- MODIFICATION FOR FASTER LAUNCH ---
+num_episodes = st.sidebar.slider("Q-Learning Episodes (for training)", 50, 2000, 200, step=50) # Default to 200 for speed
+# --- END MODIFICATION ---
+
+# Instantiate env for visualization and testing outside the cached function
+env_for_testing_and_rendering = WarehouseEnv(size=(grid_size, grid_size))
+
+# Generate fixed item positions for consistency across runs with same settings
+# Use st.session_state to persist item positions
+if 'item_positions' not in st.session_state or st.sidebar.button("Re-randomize Item Positions"):
+    st.session_state.item_positions = {}
+    for i in range(num_total_items):
+        item_id = chr(ord('A') + i) # A, B, C...
+        st.session_state.item_positions[item_id] = (random.randint(0, grid_size - 1), random.randint(0, grid_size - 1))
+
+st.sidebar.write("---")
+st.sidebar.write("### Test Order Configuration")
+# Select items for the order dynamically from available items
+all_item_ids = list(st.session_state.item_positions.keys())
+selected_order_items = st.sidebar.multiselect(
+    "Select Items for the Picking Order:",
+    options=all_item_ids,
+    default=all_item_ids[:min(3, len(all_item_ids))] # Default to first 3 items
+)
+if not selected_order_items:
+    st.sidebar.warning("Please select at least one item for the order.")
+    selected_order_items = [] # Ensure it's empty if nothing selected
+
+# --- ADDED: User feedback about training time ---
+st.info("💡 The AI agent learns through simulation. Training time depends on the number of episodes and warehouse size. With few episodes (like the default), the agent learns quickly but might not find the absolutely optimal path. Thanks to Streamlit's caching (`@st.cache_resource`), training only runs once when parameters change!")
+# --- END ADDITION ---
+
+# Call the cached function with hashable parameters
+q_table = train_q_agent(grid_size, num_episodes=num_episodes)
+
+st.subheader(f"Warehouse Layout ({grid_size}x{grid_size}) and Item Locations:")
+
+# Visualize initial item placements
+fig_initial, ax_initial = plt.subplots(figsize=(grid_size, grid_size))
+env_for_testing_and_rendering.reset(st.session_state.item_positions, selected_order_items)
+env_for_testing_and_rendering.render(ax_initial)
+st.pyplot(fig_initial)
+
+
+st.subheader(f"Optimal Picking Path for Order: {', '.join(selected_order_items)}")
+
+if not selected_order_items:
+    st.warning("No items selected for the order. Please select items in the sidebar to visualize a path.")
+else:
+    # Use the env_for_testing_and_rendering object for running the learned policy
+    env_test = env_for_testing_and_rendering # Alias for clarity
+    state_r, state_c, state_item_mask = env_test.reset(st.session_state.item_positions, selected_order_items)
+    done = False
+    path_taken = [env_test.current_pos]
+    total_reward = 0
+    steps = 0
+
+    fig_path, ax_path = plt.subplots(figsize=(grid_size, grid_size))
+    placeholder = st.empty() # Placeholder for animated plot
+
+    while not done and steps < (grid_size * grid_size * 5): # Add a step limit to prevent infinite loops
+        # Ensure item_mask calculation is consistent with training (fixed set of 10 for mask)
+        all_possible_mask_items = [chr(ord('A') + i) for i in range(10)] # 'A' to 'J'
+        item_mask_val = 0
+        for i, item_id in enumerate(all_possible_mask_items):
+            if item_id in env_test.items_to_pick and item_id not in env_test.picked_items:
+                item_mask_val |= (1 << i)
+        
+        # Clamp item_mask_val to the max index used in q_table
+        max_item_mask_idx = q_table.shape[2] - 1
+        item_mask_val = min(item_mask_val, max_item_mask_idx)
+
+        # Get best action from Q-table
+        try:
+            action_idx = np.argmax(q_table[state_r, state_c, item_mask_val, :])
+        except IndexError:
+            st.error("Error: The agent encountered an unlearned state. This can happen if the current order's item combination or mask value wasn't sufficiently explored during training, or if `num_total_items` in the sidebar exceeds the `state_space_size` assumption (max 10 for mask).")
+            st.warning("Try reducing the number of items in the order or increasing Q-Learning episodes.")
+            break # Exit loop if state is out of bounds
+
+        new_state, reward, done = env_test.step(action_idx)
+        total_reward += reward
+        steps += 1
+        path_taken.append(env_test.current_pos)
+
+        # Update plot
+        env_test.render(ax_path, path=path_taken)
+        placeholder.pyplot(fig_path)
+        plt.close(fig_path) # Close the figure to prevent display issues in Streamlit
+        time.sleep(0.1) # Simulate movement delay
+
+        state_r, state_c, state_item_mask = new_state
+    
+    final_message = f"**Order Completed!** Total Steps: {steps}, Total Reward: {total_reward}" if done else f"**Simulation stopped (max steps reached).** Total Steps: {steps}, Total Reward: {total_reward}"
+    if len(env_test.picked_items) < len(selected_order_items):
+        final_message += f" (Note: Only {len(env_test.picked_items)}/{len(selected_order_items)} items were picked.)"
+        st.warning("The agent did not pick all items in the order within the step limit. This might indicate that more training episodes are needed, or the order is too complex for this simplified environment/training.")
+    st.success(final_message)
+
+
+st.divider()
+
+st.header("🚀 Next Steps: Real-World Implementation")
+st.markdown("""
+This simulation is a simplified example. A real-world RL system for warehouse picking would involve:
+-   **More Complex State Representation:** Including aisle numbers, item dimensions, current picker load, time constraints.
+-   **Larger Action Space:** Diagonal moves, actions related to equipment (forklifts, AGVs), multi-item picking.
+-   **Advanced RL Algorithms:** Deep Q-Networks (DQN), Proximal Policy Optimization (PPO), or Actor-Critic methods for larger, more complex environments.
+-   **Integration with WMS/WES:** Real-time data feeds from Warehouse Management/Execution Systems.
+-   **Simulation Environment:** Building a highly realistic digital twin of the warehouse for training the RL agents safely and efficiently.
+-   **Scalability:** Distributing training across multiple processors or GPUs.
+
+By moving towards such sophisticated AI systems, logistics and manufacturing businesses can achieve unprecedented levels of efficiency and automation in their warehouse operations.
+""")
