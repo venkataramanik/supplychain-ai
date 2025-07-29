@@ -50,11 +50,6 @@ def generate_demand_data(
 ):
     date_range = pd.date_range(start=start_date, end=end_date, freq='D')
     df = pd.DataFrame({'Date': date_range})
-    df['DayOfWeek'] = df['Date'].dt.dayofweek # 0=Monday, 6=Sunday
-    df['Month'] = df['Date'].dt.month
-    df['DayOfYear'] = df['Date'].dt.dayofyear
-    df['WeekOfYear'] = df['Date'].dt.isocalendar().week.astype(int)
-    df['Year'] = df['Date'].dt.year
     df['DaysSinceStart'] = (df['Date'] - df['Date'].min()).dt.days
 
     # Base demand
@@ -64,13 +59,13 @@ def generate_demand_data(
     demand += trend_strength * df['DaysSinceStart'] / 365.0 # Annual trend
 
     # Weekly Seasonality (e.g., higher on weekends)
-    weekly_pattern = np.sin(df['DayOfWeek'] * (2 * np.pi / 7)) # Simple sine wave for week
+    weekly_pattern = np.sin(df['Date'].dt.dayofweek * (2 * np.pi / 7)) # Simple sine wave for week
     demand += weekly_seasonality_amplitude * weekly_pattern
 
     # Monthly Seasonality (e.g., higher at month end/beginning)
-    monthly_pattern = np.sin(df['Month'] * (2 * np.pi / 12)) # Simple sine wave for month
-    demand += monthly_seasonality_amplitude * monthly_pattern
-
+    # Using day of month for monthly seasonality
+    demand += monthly_seasonality_amplitude * np.sin(df['Date'].dt.day * (2 * np.pi / df['Date'].dt.days_in_month))
+    
     # Add random noise
     demand += np.random.normal(0, noise_level, len(df))
 
@@ -79,6 +74,7 @@ def generate_demand_data(
     return df
 
 # --- Feature Engineering for ML Model ---
+# MODIFIED: Removed .dropna() from here. NaNs will be handled explicitly where needed (training/prediction).
 def create_features(df, lags):
     df_features = df.copy()
     
@@ -88,25 +84,51 @@ def create_features(df, lags):
     df_features['WeekOfYear'] = df_features['Date'].dt.isocalendar().week.astype(int)
     df_features['DayOfYear'] = df_features['Date'].dt.dayofyear
     df_features['Quarter'] = df_features['Date'].dt.quarter
-    
+    df_features['Year'] = df_features['Date'].dt.year # Added Year as a feature
+
     # Lagged Demand features
     for lag in lags:
         df_features[f'Demand_Lag_{lag}'] = df_features['Demand'].shift(lag)
     
-    df_features = df_features.dropna() # Drop rows with NaN (due to lags)
     return df_features
 
 # --- Model Training ---
 @st.cache_resource(show_spinner="Training Demand Forecasting Model...")
-def train_forecasting_model(features_df, target_column='Demand'):
-    X = features_df.drop(['Date', target_column], axis=1)
-    y = features_df[target_column]
+def train_forecasting_model(historical_df, lags, target_column='Demand'):
+    # Create features for the entire historical dataset
+    features_df_raw = create_features(historical_df, lags=lags)
+    
+    # MODIFIED: Handle NaNs specifically here for training by dropping rows with any NaN feature
+    # This ensures a clean training set for the model.
+    # It will drop rows where lags are NaN (at the beginning of the series) or if target is NaN (shouldn't be for historical)
+    features_df_cleaned = features_df_raw.dropna(subset=[col for col in features_df_raw.columns if col != 'Date']) 
+
+    # Ensure there's enough data after dropping NaNs
+    if features_df_cleaned.empty:
+        st.error("Not enough historical data or selected lags are too large to create features. Please adjust parameters.")
+        return None, 0, 0, [], [], [], [] # Return None for model if training fails
+
+    X = features_df_cleaned.drop(['Date', target_column], axis=1)
+    y = features_df_cleaned[target_column]
 
     # Use a fixed train/test split for reproducibility within cached function
-    # For time series, a time-based split is crucial
+    # For time series, a time-based split is crucial, so we split based on index
     train_size = int(len(X) * 0.8)
+    
+    # Ensure train_size is at least 1 and test_size is at least 1 if possible
+    if train_size < 1 and len(X) >= 1: # If only one row after cleaning, train_size becomes 1
+        train_size = 1
+    elif train_size == 0 and len(X) == 0:
+        st.error("No data available for training after feature creation and NaN removal. Adjust parameters.")
+        return None, 0, 0, [], [], [], []
+
     X_train, X_test = X.iloc[:train_size], X.iloc[train_size:]
     y_train, y_test = y.iloc[:train_size], y.iloc[train_size:]
+
+    # Handle cases where test set might be empty (e.g., very short historical data)
+    if X_test.empty:
+        st.warning("Test set is empty. Model training and evaluation will be based on training data only (less reliable). Please extend historical data or reduce lags.")
+        X_test, y_test = X_train, y_train # Use training data for 'test' evaluation for demo if test set is empty
 
     model = RandomForestRegressor(n_estimators=100, random_state=42, n_jobs=-1)
     model.fit(X_train, y_train)
@@ -116,53 +138,65 @@ def train_forecasting_model(features_df, target_column='Demand'):
     mae = mean_absolute_error(y_test, predictions)
     rmse = np.sqrt(mean_squared_error(y_test, predictions))
 
-    return model, mae, rmse, X_test.index, y_test, predictions
+    # Return the columns used for training to ensure consistency in forecasting
+    return model, mae, rmse, X_test.index, y_test, predictions, X.columns.tolist()
 
 # --- Forecasting Function ---
-def forecast_future_demand(model, historical_df, forecast_horizon_days, lags):
-    last_historical_date = historical_df['Date'].max()
-    future_dates = pd.date_range(start=last_historical_date + pd.Timedelta(days=1),
-                                 periods=forecast_horizon_days, freq='D')
+# MODIFIED: Implemented robust iterative forecasting for lagged features and column consistency
+def forecast_future_demand(model, historical_df, forecast_horizon_days, lags, feature_names):
+    forecast_df = pd.DataFrame(columns=['Date', 'Forecasted_Demand'])
     
-    forecast_df = pd.DataFrame({'Date': future_dates})
+    # We need a mutable series of demand data that grows with predictions
+    # This includes historical data relevant for lags for the first forecast days.
+    max_lag = max(lags) if lags else 0
     
-    # Initialize features for forecasting based on last historical values
-    # We'll need a way to carry forward lagged features
+    # Ensure `demand_history_for_lags` always contains enough data for the longest lag
+    # This list will be updated with new predictions in each iteration.
+    demand_history_for_lags = historical_df['Demand'].iloc[-max_lag:].tolist() if max_lag > 0 else []
     
-    # Create a combined dataframe for feature generation
-    # We only need the very end of historical_df to generate lags for the first few forecast points
-    # A more robust way would be to iteratively predict and use predictions as new lags.
-    # For simplicity, let's create features for the whole combined range and then slice.
+    # Start date for the first prediction
+    next_date = historical_df['Date'].max() + pd.Timedelta(days=1)
 
-    combined_df = pd.concat([historical_df, forecast_df], ignore_index=True)
-    combined_df_features = create_features(combined_df, lags)
-    
-    # Ensure all required lag features exist even if they are NaN for early rows
-    for lag in lags:
-        if f'Demand_Lag_{lag}' not in combined_df_features.columns:
-            combined_df_features[f'Demand_Lag_{lag}'] = np.nan # Add if missing
+    for i in range(forecast_horizon_days):
+        # Create an empty DataFrame row with the expected feature columns from training
+        X_predict_row_df = pd.DataFrame(columns=feature_names)
+        
+        # Populate time-based features for the current date
+        X_predict_row_df.loc[0, 'DayOfWeek'] = next_date.dayofweek
+        X_predict_row_df.loc[0, 'Month'] = next_date.month
+        X_predict_row_df.loc[0, 'WeekOfYear'] = next_date.isocalendar().week.astype(int)
+        X_predict_row_df.loc[0, 'DayOfYear'] = next_date.dayofyear
+        X_predict_row_df.loc[0, 'Quarter'] = next_date.quarter
+        X_predict_row_df.loc[0, 'Year'] = next_date.year 
 
-    # Select only the features needed for the model and future dates
-    X_forecast = combined_df_features[combined_df_features['Date'].isin(future_dates)].drop(['Date', 'Demand'], axis=1)
-    
-    # Fill any NaN lags at the start of forecast period with the last known historical demand
-    # This is a critical step for time series forecasting with lagged features
-    for col in X_forecast.columns:
-        if 'Demand_Lag_' in col:
-            # Find the value from historical_df to fill this lag
-            lag_val = int(col.split('_')[-1])
-            if last_historical_date - pd.Timedelta(days=lag_val) in historical_df['Date'].values:
-                X_forecast[col] = X_forecast[col].fillna(
-                    historical_df[historical_df['Date'] == (last_historical_date - pd.Timedelta(days=lag_val))]['Demand'].iloc[0]
-                )
-            else:
-                # If historical data doesn't cover the full lag period, fill with mean or 0
-                X_forecast[col] = X_forecast[col].fillna(0) # Or historical_df['Demand'].mean()
+        # Populate lagged features using the `demand_history_for_lags` list
+        for lag in lags:
+            lag_feature_name = f'Demand_Lag_{lag}'
+            if lag_feature_name in feature_names: # Check if this lag was used in training
+                if len(demand_history_for_lags) >= lag:
+                    X_predict_row_df.loc[0, lag_feature_name] = demand_history_for_lags[-lag]
+                else:
+                    # If historical data isn't long enough for this specific lag,
+                    # fill with a fallback (e.g., 0 or mean from training data)
+                    # This ensures no NaNs for prediction input.
+                    X_predict_row_df.loc[0, lag_feature_name] = 0 
+            # If the lag_feature_name is not in feature_names, it simply won't be in X_predict_row_df
+            # because we initialized X_predict_row_df with only feature_names columns.
+        
+        # Ensure all columns are converted to the correct numeric type (float for RandomForest)
+        X_predict_row_df = X_predict_row_df.astype(float) 
 
-    # Make predictions
-    future_predictions = model.predict(X_forecast)
-    forecast_df['Forecasted_Demand'] = np.maximum(0, future_predictions).round(0).astype(int)
+        # Predict
+        predicted_demand = model.predict(X_predict_row_df)[0]
+        
+        # Append prediction to forecast_df and to demand_history_for_lags for next iteration
+        forecast_df.loc[len(forecast_df)] = [next_date, max(0, predicted_demand)]
+        demand_history_for_lags.append(max(0, predicted_demand))
+
+        # Move to the next day
+        next_date += pd.Timedelta(days=1)
     
+    forecast_df['Forecasted_Demand'] = forecast_df['Forecasted_Demand'].round(0).astype(int)
     return forecast_df
 
 # --- Streamlit App UI ---
@@ -175,7 +209,7 @@ st.sidebar.subheader("Demand Patterns")
 base_demand = st.sidebar.slider("Base Daily Demand", 50, 500, 150, step=10)
 trend_strength = st.sidebar.slider("Annual Trend Strength", -20, 50, 10)
 weekly_seasonality_amplitude = st.sidebar.slider("Weekly Seasonality Amplitude", 0, 100, 30)
-monthly_seasonality_amplitude = st.sidebar.slider("Monthly Seasonality Amplitude", 0, 100, 20)
+monthly_seasonality_amplitude = st.sidebar.slider("Monthly Seasonality Amplitude (Day of Month)", 0, 100, 20)
 noise_level = st.sidebar.slider("Random Noise Level", 0, 50, 15)
 
 st.sidebar.header("Forecasting Parameters")
@@ -198,57 +232,58 @@ historical_demand_df = generate_demand_data(
     noise_level
 )
 
-# Prepare features for model
-# Important: `create_features` drops NaNs, so it implicitly sets the start of the training period.
-features_df = create_features(historical_demand_df, lags=lags_to_use)
-
 # Train Model
-model, mae, rmse, test_indices, y_test_actual, y_test_pred = train_forecasting_model(
-    features_df, target_column='Demand'
+# Pass lags to training function so it can properly clean features_df
+model, mae, rmse, test_indices, y_test_actual, y_test_pred, feature_names = train_forecasting_model(
+    historical_demand_df, lags=lags_to_use, target_column='Demand'
 )
 
-st.subheader("1. Historical Demand Data (Generated)")
-fig1, ax1 = plt.subplots(figsize=(12, 5))
-ax1.plot(historical_demand_df['Date'], historical_demand_df['Demand'], label='Historical Demand', color='dodgerblue')
-ax1.set_title('Simulated Historical Demand')
-ax1.set_xlabel('Date')
-ax1.set_ylabel('Demand Units')
-ax1.legend()
-st.pyplot(fig1)
+if model is None: # Handle cases where training failed (e.g., not enough data)
+    st.error("Model training failed. This can happen if the selected historical data range is too short or if the lags chosen are too large, resulting in insufficient data for training after feature creation. Please adjust start/end dates or reduce the number/size of lags.")
+else:
+    st.subheader("1. Historical Demand Data (Generated)")
+    fig1, ax1 = plt.subplots(figsize=(12, 5))
+    ax1.plot(historical_demand_df['Date'], historical_demand_df['Demand'], label='Historical Demand', color='dodgerblue')
+    ax1.set_title('Simulated Historical Demand')
+    ax1.set_xlabel('Date')
+    ax1.set_ylabel('Demand Units')
+    ax1.legend()
+    st.pyplot(fig1)
 
-st.subheader("2. Model Training & Evaluation")
-st.markdown(f"""
-The Random Forest model was trained on historical data.
--   **Mean Absolute Error (MAE):** `{mae:.2f}` units
--   **Root Mean Squared Error (RMSE):** `{rmse:.2f}` units
-""")
-st.info("MAE indicates the average absolute difference between actual and predicted demand. RMSE penalizes larger errors more heavily.")
+    st.subheader("2. Model Training & Evaluation")
+    st.markdown(f"""
+    The Random Forest model was trained on historical data.
+    -   **Mean Absolute Error (MAE):** `{mae:.2f}` units
+    -   **Root Mean Squared Error (RMSE):** `{rmse:.2f}` units
+    """)
+    st.info("MAE indicates the average absolute difference between actual and predicted demand. RMSE penalizes larger errors more heavily.")
 
-fig2, ax2 = plt.subplots(figsize=(12, 5))
-ax2.plot(historical_demand_df['Date'].iloc[test_indices], y_test_actual, label='Actual Test Demand', color='orange')
-ax2.plot(historical_demand_df['Date'].iloc[test_indices], y_test_pred, label='Predicted Test Demand', color='green', linestyle='--')
-ax2.set_title('Model Performance on Test Set (Out-of-Sample)')
-ax2.set_xlabel('Date')
-ax2.set_ylabel('Demand Units')
-ax2.legend()
-st.pyplot(fig2)
+    fig2, ax2 = plt.subplots(figsize=(12, 5))
+    ax2.plot(historical_demand_df['Date'].iloc[test_indices], y_test_actual, label='Actual Test Demand', color='orange')
+    ax2.plot(historical_demand_df['Date'].iloc[test_indices], y_test_pred, label='Predicted Test Demand', color='green', linestyle='--')
+    ax2.set_title('Model Performance on Test Set (Out-of-Sample)')
+    ax2.set_xlabel('Date')
+    ax2.set_ylabel('Demand Units')
+    ax2.legend()
+    st.pyplot(fig2)
 
 
-st.subheader(f"3. Future Demand Forecast ({forecast_horizon_days} Days Horizon)")
-future_forecast_df = forecast_future_demand(model, historical_demand_df, forecast_horizon_days, lags=lags_to_use)
+    st.subheader(f"3. Future Demand Forecast ({forecast_horizon_days} Days Horizon)")
+    # Pass feature_names to forecasting function
+    future_forecast_df = forecast_future_demand(model, historical_demand_df, forecast_horizon_days, lags=lags_to_use, feature_names=feature_names)
 
-fig3, ax3 = plt.subplots(figsize=(12, 6))
-ax3.plot(historical_demand_df['Date'], historical_demand_df['Demand'], label='Historical Demand', color='dodgerblue')
-ax3.plot(future_forecast_df['Date'], future_forecast_df['Forecasted_Demand'], label='Forecasted Demand', color='red', linestyle='--')
-ax3.axvline(x=historical_demand_df['Date'].max(), color='gray', linestyle=':', label='Forecast Start')
-ax3.set_title('Historical Demand vs. Future Forecast')
-ax3.set_xlabel('Date')
-ax3.set_ylabel('Demand Units')
-ax3.legend()
-st.pyplot(fig3)
+    fig3, ax3 = plt.subplots(figsize=(12, 6))
+    ax3.plot(historical_demand_df['Date'], historical_demand_df['Demand'], label='Historical Demand', color='dodgerblue')
+    ax3.plot(future_forecast_df['Date'], future_forecast_df['Forecasted_Demand'], label='Forecasted Demand', color='red', linestyle='--')
+    ax3.axvline(x=historical_demand_df['Date'].max(), color='gray', linestyle=':', label='Forecast Start')
+    ax3.set_title('Historical Demand vs. Future Forecast')
+    ax3.set_xlabel('Date')
+    ax3.set_ylabel('Demand Units')
+    ax3.legend()
+    st.pyplot(fig3)
 
-st.subheader("4. Raw Forecast Data")
-st.dataframe(future_forecast_df.head(10)) # Show first 10 rows of forecast
+    st.subheader("4. Raw Forecast Data (First 10 Days)")
+    st.dataframe(future_forecast_df.head(10)) # Show first 10 rows of forecast
 
 st.divider()
 
