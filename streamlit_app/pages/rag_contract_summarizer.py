@@ -2,7 +2,7 @@
 
 import streamlit as st
 import torch
-from transformers import AutoTokenizer, AutoModelForCausalLM
+from transformers import AutoTokenizer, AutoModelForSeq2SeqLM # Changed from AutoModelForCausalLM
 from sentence_transformers import SentenceTransformer
 import faiss
 import numpy as np
@@ -181,12 +181,10 @@ embedding_model_instance = load_embedding_model()
 
 # 2.3. Vector Store (FAISS Index)
 # Use st.cache_resource to cache the FAISS index creation
-# FIX: build_faiss_index no longer takes the model as a parameter.
-# It calls load_embedding_model() internally to get the cached model instance.
 @st.cache_resource
 def build_faiss_index(texts): # Removed 'model' parameter
     # Get the cached embedding model instance inside the function
-    model = load_embedding_model()
+    model = load_embedding_model() # This ensures the cached model is used
     embeddings = model.encode(texts, convert_to_tensor=False) # Get numpy array
     dimension = embeddings.shape[1]
     index = faiss.IndexFlatL2(dimension) # L2 distance for similarity search
@@ -204,7 +202,8 @@ def load_llm():
     # Using a small T5 model for text generation, suitable for CPU/limited GPU
     model_name = "google/flan-t5-small"
     tokenizer = AutoTokenizer.from_pretrained(model_name)
-    model = AutoModelForCausalLM.from_pretrained(model_name)
+    # FIX: Changed from AutoModelForCausalLM to AutoModelForSeq2SeqLM for T5 models
+    model = AutoModelForSeq2SeqLM.from_pretrained(model_name)
     return tokenizer, model
 
 llm_tokenizer, llm_model = load_llm()
