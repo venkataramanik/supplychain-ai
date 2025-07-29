@@ -47,7 +47,10 @@ class WarehouseEnv:
         self.picked_items = set()
         self.grid = np.zeros(size) # 0 for empty, 1 for item
         self.action_space = ['UP', 'DOWN', 'LEFT', 'RIGHT', 'PICK']
-        self.state_space_size = (self.rows, self.cols, 2**10) # Max 10 items for state simplicity
+        # state_space_size[2] represents the max value of the item_mask.
+        # This will need to be consistent with the number of items considered in training.
+        # For a fixed max of 10 items in training, 2**10 is appropriate for the mask.
+        self.state_space_size = (self.rows, self.cols, 2**10)
 
     def reset(self, item_positions, order_items):
         self.current_pos = list(self.start_pos)
@@ -62,8 +65,15 @@ class WarehouseEnv:
     def _get_state(self):
         # State includes current position and remaining items (represented by a bitmask for simplicity)
         item_mask = 0
-        for i, item_id in enumerate(sorted(self.items_to_pick)): # Sort to ensure consistent state representation
-            if item_id not in self.picked_items:
+        # For state consistency, ensure items used to form the mask are sorted
+        # This assumes a predefined, stable set of items for mask generation.
+        # For simplicity in training, we assume item IDs 'A' through 'J' (10 items) for the mask.
+        # In a real app, this would need careful design based on max possible items.
+        all_possible_mask_items = [chr(ord('A') + i) for i in range(10)] # 'A' to 'J'
+        
+        for i, item_id in enumerate(all_possible_mask_items):
+            # Only include items in the current order for the mask if they are not yet picked
+            if item_id in self.items_to_pick and item_id not in self.picked_items:
                 item_mask |= (1 << i) # Set bit if item is not yet picked
         
         # Clamp item_mask to avoid issues if state_space_size is too small for many items
@@ -89,13 +99,13 @@ class WarehouseEnv:
             next_pos[1] = min(self.cols - 1, self.current_pos[1] + 1)
         elif action == 'PICK':
             # Check if current position has an item to pick that is in the current order and not yet picked
-            for item_id in list(self.items_to_pick): # Iterate over a copy because we might modify it
-                if self.items[item_id] == tuple(self.current_pos) and item_id not in self.picked_items:
+            # Iterate over a copy because we might modify self.items_to_pick
+            for item_id in list(self.items_to_pick): 
+                if self.items.get(item_id) == tuple(self.current_pos) and item_id not in self.picked_items:
                     self.picked_items.add(item_id)
                     reward += 100 # Reward for picking an item
-                    # print(f"Picked item {item_id} at {self.current_pos}") # Debugging
                     break # Only pick one item per 'PICK' action, even if multiple are at the same spot
-            else: # No item picked at this location
+            else: # No item picked at this location (or already picked)
                 reward -= 5 # Penalty for trying to pick where there's nothing or it's already picked
 
         # Update position
@@ -108,7 +118,7 @@ class WarehouseEnv:
         elif len(self.picked_items) == len(self.items_to_pick) and len(self.items_to_pick) == 0:
             # Case for empty order, immediately done with small reward
             done = True
-            reward = 100
+            reward = 100 # Still get some reward for empty order if done
 
         return self._get_state(), reward, done
 
@@ -157,8 +167,13 @@ class WarehouseEnv:
         ax.axis('off')
 
 # --- Q-Learning Function ---
+# Now takes hashable parameters (grid_size, etc.)
 @st.cache_resource(show_spinner="Training AI Agent (Q-Learning)... This may take a moment.")
-def train_q_agent(env, num_episodes=5000, learning_rate=0.1, discount_factor=0.99, epsilon_decay=0.995, min_epsilon=0.01):
+def train_q_agent(grid_size, num_episodes=5000, learning_rate=0.1, discount_factor=0.99, epsilon_decay=0.995, min_epsilon=0.01):
+    # Create the environment INSIDE the cached function
+    env = WarehouseEnv(size=(grid_size, grid_size))
+
+    # Q-table shape uses env properties for consistency
     q_table = np.zeros((env.rows, env.cols, env.state_space_size[2], len(env.action_space)))
     epsilon = 1.0 # Exploration-exploitation trade-off
 
@@ -170,18 +185,11 @@ def train_q_agent(env, num_episodes=5000, learning_rate=0.1, discount_factor=0.9
     status_text = st.empty()
 
     for episode in range(num_episodes):
-        # For training, we need a consistent set of items, but the agent learns general rules
-        # For simplicity, let's reset to a fixed sample of items for training for now.
-        # In a real scenario, training would be over many varied orders/layouts.
-        
-        # Example: for training, consider a small, fixed set of items to pick for simplicity
-        # so the agent learns to pick them efficiently, regardless of their actual placement.
-        # This simplifies the state space for the 'items remaining' mask.
-        
-        # Let's ensure a simple consistent order for basic training stability
+        # For training, let's use a fixed small set of item IDs for consistency in the item mask
+        # but their positions will be randomized. This is a simplification for stable training.
         train_order_items = ['A', 'B'] # Example small order for training consistency
-        
-        # Re-initialize item positions for each training run, or fix for simpler learning
+
+        # Generate item positions relative to the env size
         train_item_positions = {
             'A': (random.randint(0, env.rows-1), random.randint(0, env.cols-1)),
             'B': (random.randint(0, env.rows-1), random.randint(0, env.cols-1)),
@@ -189,7 +197,7 @@ def train_q_agent(env, num_episodes=5000, learning_rate=0.1, discount_factor=0.9
             'D': (random.randint(0, env.rows-1), random.randint(0, env.cols-1))
         }
 
-
+        # Reset the environment for a new episode
         state_r, state_c, state_item_mask = env.reset(train_item_positions, train_order_items)
         done = False
 
@@ -198,10 +206,8 @@ def train_q_agent(env, num_episodes=5000, learning_rate=0.1, discount_factor=0.9
                 action_idx = random.randrange(len(env.action_space)) # Explore action space
             else:
                 action_idx = np.argmax(q_table[state_r, state_c, state_item_mask, :]) # Exploit learned values
-
-            next_state_r, next_state_c, next_state_item_mask = env._get_state() # Get state before step for Q-table update
             
-            # Take action
+            # Take action and observe new state and reward
             new_state, reward, done = env.step(action_idx)
             new_state_r, new_state_c, new_state_item_mask = new_state
 
@@ -232,7 +238,8 @@ grid_size = st.sidebar.slider("Warehouse Size (N x N)", 5, 20, 10)
 num_total_items = st.sidebar.slider("Number of Total Items in Warehouse", 5, 20, 8)
 num_episodes = st.sidebar.slider("Q-Learning Episodes (for training)", 1000, 10000, 5000, step=1000)
 
-env = WarehouseEnv(size=(grid_size, grid_size))
+# Instantiate env for visualization and testing outside the cached function
+env_for_testing_and_rendering = WarehouseEnv(size=(grid_size, grid_size))
 
 # Generate fixed item positions for consistency across runs with same settings
 # Use st.session_state to persist item positions
@@ -255,15 +262,15 @@ if not selected_order_items:
     st.sidebar.warning("Please select at least one item for the order.")
     selected_order_items = [] # Ensure it's empty if nothing selected
 
-q_table = train_q_agent(env, num_episodes=num_episodes)
+# Call the cached function with hashable parameters
+q_table = train_q_agent(grid_size, num_episodes=num_episodes)
 
 st.subheader(f"Warehouse Layout ({grid_size}x{grid_size}) and Item Locations:")
 
 # Visualize initial item placements
 fig_initial, ax_initial = plt.subplots(figsize=(grid_size, grid_size))
-env_render = WarehouseEnv(size=(grid_size, grid_size)) # Temporary env for initial render
-env_render.reset(st.session_state.item_positions, selected_order_items)
-env_render.render(ax_initial)
+env_for_testing_and_rendering.reset(st.session_state.item_positions, selected_order_items)
+env_for_testing_and_rendering.render(ax_initial)
 st.pyplot(fig_initial)
 
 
@@ -272,8 +279,8 @@ st.subheader(f"Optimal Picking Path for Order: {', '.join(selected_order_items)}
 if not selected_order_items:
     st.warning("No items selected for the order. Please select items in the sidebar to visualize a path.")
 else:
-    # Run the learned policy
-    env_test = WarehouseEnv(size=(grid_size, grid_size))
+    # Use the env_for_testing_and_rendering object for running the learned policy
+    env_test = env_for_testing_and_rendering # Alias for clarity
     state_r, state_c, state_item_mask = env_test.reset(st.session_state.item_positions, selected_order_items)
     done = False
     path_taken = [env_test.current_pos]
@@ -284,11 +291,11 @@ else:
     placeholder = st.empty() # Placeholder for animated plot
 
     while not done and steps < (grid_size * grid_size * 5): # Add a step limit to prevent infinite loops
-        # Ensure item_mask calculation is consistent with training
-        current_order_item_ids_sorted_for_mask = sorted(selected_order_items)
+        # Ensure item_mask calculation is consistent with training (fixed set of 10 for mask)
+        all_possible_mask_items = [chr(ord('A') + i) for i in range(10)] # 'A' to 'J'
         item_mask_val = 0
-        for i, item_id in enumerate(current_order_item_ids_sorted_for_mask):
-            if item_id not in env_test.picked_items:
+        for i, item_id in enumerate(all_possible_mask_items):
+            if item_id in env_test.items_to_pick and item_id not in env_test.picked_items:
                 item_mask_val |= (1 << i)
         
         # Clamp item_mask_val to the max index used in q_table
@@ -296,12 +303,11 @@ else:
         item_mask_val = min(item_mask_val, max_item_mask_idx)
 
         # Get best action from Q-table
-        # Handle cases where state might not be fully learned (e.g., if item_mask_val goes beyond training's simplicity)
         try:
             action_idx = np.argmax(q_table[state_r, state_c, item_mask_val, :])
         except IndexError:
-            st.error("Error: The agent encountered an unlearned state. This can happen with complex orders or very different item placements than during simplified training.")
-            st.warning("Try reducing the number of items in the order or re-randomizing item positions.")
+            st.error("Error: The agent encountered an unlearned state. This can happen if the current order's item combination or mask value wasn't sufficiently explored during training, or if `num_total_items` in the sidebar exceeds the `state_space_size` assumption (max 10 for mask).")
+            st.warning("Try reducing the number of items in the order or increasing Q-Learning episodes.")
             break # Exit loop if state is out of bounds
 
         new_state, reward, done = env_test.step(action_idx)
