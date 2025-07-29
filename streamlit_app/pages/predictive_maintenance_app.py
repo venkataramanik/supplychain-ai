@@ -70,10 +70,10 @@ Our Logistic Regression model works similarly:
 It's a straightforward yet effective way for a computer to "learn" from data and help us make smarter decisions about machine upkeep.
 """)
 
----
+st.divider() # Visual separator
 
-### 📡 IoT Data Ingestion: Where the Data Comes From
-
+st.subheader("📡 IoT Data Ingestion: Where the Data Comes From")
+st.markdown("""
 In a real-world predictive maintenance scenario, the sensor data (like the temperature, vibration, and pressure readings we're simulating) doesn't just appear. It's collected directly from the physical equipment via **Internet of Things (IoT) sensors and devices**.
 
 Here's a typical flow:
@@ -90,14 +90,13 @@ Here's a typical flow:
     * **Google Cloud Pub/Sub (for IoT workloads):** While Google Cloud IoT Core was retired, Google's ecosystem leverages services like Cloud Pub/Sub for high-volume data ingestion and real-time streaming data processing for IoT workloads.
 
 This robust infrastructure ensures that continuous, real-time data is available for the AI models to make timely and accurate predictions about machine health.
+""")
 
----
+st.divider() # Visual separator
 
-### 1. Simulated Data Overview
+st.header("1. Simulated Data Overview")
+st.info("We've generated synthetic sensor data (temperature, vibration, pressure, usage hours) for a fleet of machines, including simulated failure events. This data mimics real-world scenarios where equipment shows signs of deterioration before a breakdown.")
 
-We've generated synthetic sensor data (temperature, vibration, pressure, usage hours) for a fleet of machines, including simulated failure events. This data mimics real-world scenarios where equipment shows signs of deterioration before a breakdown.
-
-```python
 @st.cache_data # Cache data generation to avoid re-running on every interaction
 def generate_maintenance_data(num_machines=50, num_days=365):
     np.random.seed(42) # for reproducibility
@@ -163,13 +162,11 @@ df_raw = generate_maintenance_data(num_machines=50, num_days=365)
 st.write(f"Generated data for **{df_raw['machine_id'].nunique()} machines** over **{df_raw['timestamp'].nunique()} days**.")
 st.dataframe(df_raw.head())
 
----
+st.divider()
 
-### 2. Machine Learning Model Training
+st.header("2. Machine Learning Model Training")
+st.info("Using this historical data, a Logistic Regression model is trained to learn the patterns that precede a machine failure.")
 
-Using this historical data, a Logistic Regression model is trained to learn the patterns that precede a machine failure.
-
-```python
 @st.cache_resource # Cache the trained model and its evaluation results
 def train_predictive_model(data):
     # Features (X): What the model uses to predict (sensor readings, usage hours)
@@ -230,13 +227,11 @@ ax_roc.legend(loc="lower right")
 st.pyplot(fig_roc)
 st.markdown("The ROC curve helps visualize the trade-off between correctly identifying failures (True Positive Rate) and incorrectly flagging non-failures (False Positive Rate). A higher Area Under the Curve (AUC) indicates a better performing model.")
 
----
+st.divider()
 
-### 3. Interactive Machine Health Monitoring Dashboard
+st.header("3. Interactive Machine Health Monitoring Dashboard")
+st.info("Select a machine to view its historical sensor trends and the model's predicted likelihood of failure over time. This helps maintenance teams proactively identify at-risk assets.")
 
-Select a machine to view its historical sensor trends and the model's predicted likelihood of failure over time. This helps maintenance teams proactively identify at-risk assets.
-
-```python
 selected_machine_id = st.selectbox(
     "Select a Machine ID to inspect:",
     df_raw['machine_id'].unique(),
@@ -308,35 +303,41 @@ for f_day in failure_days:
 ax_proba.legend(loc='upper left') # Re-add legend to include actual failure if present
 st.pyplot(fig_proba)
 
----
+st.divider()
 
-### 🚀 Next Steps: Scaling with High-Performance AI & Advanced Capabilities
-
+st.header("🚀 Next Steps: Scaling with High-Performance AI & Advanced Capabilities")
+st.markdown("""
 This demonstration uses open-source components that can run on a standard CPU for simplicity.
 However, for real-world enterprise applications with massive datasets, complex equipment, and
 demanding real-time performance, **specialized hardware and optimized software stacks** are essential.
 
 Here's how this Predictive Maintenance pipeline can be elevated:
+""")
 
-#### Hardware & Performance
-
+st.subheader("Hardware & Performance")
+st.markdown("""
 -   **Real-time Sensor Data Ingestion:** Integrate with industrial IoT platforms (e.g., AWS IoT, Azure IoT Hub, Google Cloud IoT Core) and high-throughput data streaming solutions (e.g., Apache Kafka) to ingest massive volumes of sensor data in real-time.
 -   **Accelerated Model Training:** For more complex, state-of-the-art models (e.g., Deep Learning, advanced Time Series Neural Networks), leverage powerful GPUs (e.g., NVIDIA GPUs) for significantly faster training times, allowing for more frequent model updates and retraining on fresh data.
 -   **Edge AI Deployment:** Deploy lightweight, optimized inference models directly on edge devices (e.g., on the machines themselves or in nearby gateways) using technologies like NVIDIA Jetson or TensorRT. This enables immediate, localized failure prediction without constant cloud communication, critical for remote or high-latency environments.
+""")
 
-#### Advanced Data & Models
-
+st.subheader("Advanced Data & Models")
+st.markdown("""
 -   **Complex Time Series Models:** Implement advanced deep learning models (e.g., LSTMs, Transformers, Recurrent Neural Networks) specifically designed to capture intricate temporal patterns and long-term dependencies in sensor data for more accurate long-term failure prediction.
 -   **Anomaly Detection:** Incorporate unsupervised learning techniques to detect unusual sensor readings that might indicate emerging, unforeseen issues or novel failure modes, even without historical failure labels.
 -   **Multi-modal Data Integration:** Combine sensor data with other crucial data sources like detailed maintenance logs (textual analysis), equipment specifications, external factors (e.g., weather, road conditions for vehicles), and operational schedules for richer feature sets and more comprehensive predictions.
 -   **Physics-Informed AI:** Integrate engineering knowledge, physical models, and first principles into the AI model design to improve the robustness, accuracy, and explainability of predictions, especially for complex mechanical systems.
+""")
 
-#### Integration & MLOps
-
+st.subheader("Integration & MLOps")
+st.markdown("""
 -   **Automated MLOps Pipeline:** Establish robust, end-to-end MLOps pipelines for automated data validation, feature engineering, model retraining, versioning, deployment, and continuous monitoring of model performance in production environments.
 -   **Integration with CMMS/ERP:** Seamlessly integrate failure predictions with Computerized Maintenance Management Systems (CMMS) or Enterprise Resource Planning (ERP) systems to automatically trigger work orders, allocate resources, and manage spare parts.
 -   **Prescriptive Analytics:** Move beyond simply predicting *when* a machine will fail to prescribing *what specific action* should be taken to prevent it (e.g., "Replace bearing X," "Adjust pressure valve Y," "Perform lubrication on component Z").
 -   **AI-Powered Digital Twins:** Create digital replicas of physical assets that integrate real-time sensor data with predictive models, allowing for virtual testing of maintenance strategies and optimization before real-world implementation.
 -   **Agentic Workflows:** Develop autonomous AI agents that can not only monitor machine health and predict failures but also initiate maintenance requests, order spare parts automatically, and even coordinate with operational scheduling systems to minimize disruption, acting as an intelligent orchestrator.
+""")
 
+st.markdown("""
 By leveraging high-performance computing and specialized AI software, enterprises can build highly accurate, scalable, and responsive Predictive Maintenance solutions that truly optimize asset performance, enhance operational resilience, and drive significant cost savings.
+""")
