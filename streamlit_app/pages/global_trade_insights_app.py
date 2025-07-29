@@ -1,3 +1,18 @@
+It's great news that you're no longer getting a `SyntaxError`\! That means your Python code is now running correctly.
+
+The new error, `Error fetching data from UN Comtrade API: 404 Client Error: Not Found`, indicates that while your code is working, the **UN Comtrade API URL or parameters you are using are no longer valid** or don't point to available data.
+
+The `404 Not Found` error means the server (UN Comtrade) couldn't find the resource at the requested URL. This is a very common issue with external APIs, as they often update their endpoints or data access methods.
+
+**The most likely cause is that the UN Comtrade API `v1` endpoint used in the code has been deprecated or changed.** UN Comtrade has been transitioning to a `v2` API.
+
+Let's update the API endpoint to the new `v2` structure and also adjust the parameters based on the `v2` documentation.
+
+Here's how to modify your `fetch_comtrade_data` function:
+
+**Change the `base_url` and slightly adjust the `params`:**
+
+```python
 import streamlit as st
 import numpy as np
 import pandas as pd
@@ -8,7 +23,7 @@ import datetime
 from sklearn.ensemble import IsolationForest
 
 # --- Streamlit Page Configuration ---
-st.set_page_config(layout="wide", page_title="🌍 Global Trade Insights & Landed Cost")
+st.set_set_page_config(layout="wide", page_title="🌍 Global Trade Insights & Landed Cost")
 
 st.title("🌍 Global Trade Insights, Anomaly Detection & Landed Cost Simulation")
 
@@ -23,7 +38,7 @@ In today's interconnected world, understanding global trade flows and accurately
 -   **Calculating Landed Costs:** Understanding the *true* cost of goods, including tariffs, freight, and other fees, to inform pricing, sourcing, and profitability.
 
 This application demonstrates how we can fetch real-world trade data via the **UN Comtrade API** and apply basic ML techniques like **Anomaly Detection**, alongside a **Landed Cost & Tariff Simulator** to highlight interesting trade patterns and financial implications.
-""") # <--- CHECK THIS LINE CAREFULLY IN YOUR FILE
+""")
 
 st.subheader("💡 How We're Using AI/ML & Simulation for Insights:")
 st.markdown("""
@@ -37,7 +52,7 @@ st.markdown("""
     * This tool allows you to input various costs (unit cost, freight, insurance) and, crucially, a **tariff rate**.
     * It calculates the total "landed cost" – the true cost of bringing a product to its destination – which is vital for pricing decisions and profit margin analysis.
     * *While this demo uses a user-inputted tariff rate for simplicity, in a real-world AI solution, ML could potentially predict future tariff changes or optimize sourcing based on complex duty structures.*
-""") # <--- CHECK THIS LINE CAREFULLY IN YOUR FILE
+""")
 
 st.divider()
 
@@ -54,12 +69,12 @@ COUNTRY_CODES = {
 }
 COUNTRY_NAMES = {v: k for k, v in COUNTRY_CODES.items()} # Reverse for display
 
-# Trade Flow options for the API
+# Trade Flow options for the API (v2 uses specific IDs)
 TRADE_FLOWS = {
-    "Imports": "imports",
-    "Exports": "exports",
-    "Re-Imports": "re_imports",
-    "Re-Exports": "re_exports"
+    "Imports": "1",  # V2 flow ID for Imports
+    "Exports": "2",  # V2 flow ID for Exports
+    "Re-Imports": "7", # V2 flow ID for Re-Imports
+    "Re-Exports": "8"  # V2 flow ID for Re-Exports
 }
 
 # Common Commodity options (HS codes). User can also input custom HS codes.
@@ -75,29 +90,53 @@ COMMODITY_OPTIONS = {
 @st.cache_data(ttl=3600, show_spinner="Fetching data from UN Comtrade API (may take a moment)...")
 def fetch_comtrade_data(reporter_id, period, flow_code, commodity_code='TOTAL', partner_id='ALL'):
     """Fetches trade data from UN Comtrade API."""
-    base_url = "https://comtrade.un.org/api/get/v1/trade/r"
+    # Updated base URL for UN Comtrade API v2
+    base_url = "https://comtradeapi.un.org/data/v1/get/C/A" # C for Comtrade, A for Annual
 
     params = {
-        'r': reporter_id,
-        'ps': period, # e.g., '2020,2021,2022'
-        'freq': 'A', # Annual data
-        'px': 'HS', # Harmonized System
-        'cc': commodity_code, # 'TOTAL' or specific HS code
-        'flow': flow_code,
-        'p': partner_id, # 'ALL' or specific country ID
+        'reporterCode': reporter_id,
+        'period': period, # e.g., '2020,2021,2022'
+        'flowCode': flow_code, # Use the v2 flow IDs
+        'cmdCode': commodity_code, # 'TOTAL' or specific HS code
+        'partnerCode': partner_id, # 'ALL' or specific country ID
         'format': 'json'
     }
 
+    # Add API subscription key if you have one (essential for consistent access)
+    # Storing API keys directly in code is not best practice for production apps.
+    # For a demo, you can hardcode, but for deployment, use Streamlit secrets.
+    # Replace 'YOUR_API_SUBSCRIPTION_KEY' with your actual key if you have one
+    # You can get a free key from UN Comtrade website after registration.
+    headers = {
+        'Ocp-Apim-Subscription-Key': st.secrets.get("UN_COMTRADE_API_KEY", "") # Using Streamlit secrets for better practice
+    }
+    if not headers['Ocp-Apim-Subscription-Key']:
+        st.warning("UN_COMTRADE_API_KEY not found in Streamlit secrets. Data fetching might be limited or fail. "
+                   "Consider adding your UN Comtrade API subscription key to `.streamlit/secrets.toml`.")
+
     try:
-        response = requests.get(base_url, params=params)
+        response = requests.get(base_url, params=params, headers=headers)
         response.raise_for_status() # Raise an HTTPError for bad responses (4xx or 5xx)
         data = response.json()
 
         if data and data.get('data'):
             df = pd.DataFrame(data['data'])
-            # Select and rename relevant columns for clarity
-            df = df[['period', 'rtTitle', 'ptTitle', 'cmdCode', 'cmdDesc', 'flowDesc', 'tradeValue']]
-            df.columns = ['Year', 'Reporter', 'Partner', 'Commodity_Code', 'Commodity_Description', 'Trade_Flow', 'Trade_Value_USD']
+            
+            # Adjust column names for v2 API response
+            df.columns = [col.replace('refPeriod', 'Year') # Renaming period to Year
+                          .replace('reporterDesc', 'Reporter') # Renaming reporterDesc
+                          .replace('partnerDesc', 'Partner') # Renaming partnerDesc
+                          .replace('cmdCode', 'Commodity_Code') # Renaming cmdCode
+                          .replace('cmdDesc', 'Commodity_Description') # Renaming cmdDesc
+                          .replace('flowDesc', 'Trade_Flow') # Renaming flowDesc
+                          .replace('tradeValue', 'Trade_Value_USD') # Renaming tradeValue
+                          for col in df.columns]
+
+            # Ensure necessary columns are present after renaming (v2 specific)
+            required_cols = ['Year', 'Reporter', 'Partner', 'Commodity_Code', 'Commodity_Description', 'Trade_Flow', 'Trade_Value_USD']
+            df = df[required_cols]
+
+
             df['Year'] = pd.to_datetime(df['Year'].astype(str), format='%Y') # Convert to datetime objects
             df['Trade_Value_USD'] = pd.to_numeric(df['Trade_Value_USD'])
             
@@ -109,10 +148,12 @@ def fetch_comtrade_data(reporter_id, period, flow_code, commodity_code='TOTAL', 
             st.warning("No data returned for the selected parameters. Please try different selections or check if data is available for this combination.")
             return pd.DataFrame()
     except requests.exceptions.RequestException as e:
-        st.error(f"Error fetching data from UN Comtrade API: {e}. Please check your internet connection or API limits.")
+        st.error(f"Error fetching data from UN Comtrade API: {e}. This often means the request was invalid or API limits were hit. "
+                 f"The requested URL was: {response.url if 'response' in locals() else 'N/A'}. "
+                 f"Consider adding your API subscription key.")
         return pd.DataFrame()
     except ValueError as e:
-        st.error(f"Error processing JSON data: {e}. Data might be in an unexpected format.")
+        st.error(f"Error processing JSON data: {e}. Data might be in an unexpected format. API response: {data if 'data' in locals() else 'N/A'}")
         return pd.DataFrame()
     except Exception as e:
         st.error(f"An unexpected error occurred: {e}")
@@ -336,7 +377,7 @@ with col2:
     <p style="font-size: small; color: gray;">
     This simulator provides a simplified calculation of landed cost. In reality, duties can be more complex (e.g., specific duties, anti-dumping duties, preferential rates).
     </p>
-    """, unsafe_allow_html=True) # <--- CHECK THIS LINE CAREFULLY IN YOUR FILE
+    """, unsafe_allow_html=True)
 
 
 st.divider()
@@ -352,4 +393,5 @@ This application offers a glimpse into AI's potential in trade analysis and cost
 -   **Sentiment Analysis:** Analyzing news and social media to predict trade impacts from geopolitical events.
 
 By combining historical trade data with economic indicators, geopolitical events, and AI, businesses can build resilient and proactive global trade strategies, ensuring both profitability and compliance.
-""") # <--- CHECK THIS LINE CAREFULLY IN YOUR FILE
+""")
+```
