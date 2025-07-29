@@ -1,69 +1,15 @@
-Yes, absolutely\! **Showing a landed cost and tariff simulator would be a phenomenal addition** and significantly enhance the value proposition for your prospects, especially in a supply chain or global trade context.
+Okay, I understand you want me to regenerate the entire `global_trade_insights_app.py` file. I will provide the *exact same code* again.
 
-Here's why it would be incredibly helpful and how it ties into the AI/ML aspect:
+**Please pay extremely close attention to the following points when you copy and save this file:**
 
-**Why a Landed Cost & Tariff Simulator is Valuable:**
+  * **Copy ALL of the code:** Start from the very first `import streamlit as st` line and go all the way to the very last `"""` (triple quote) of the final markdown block.
+  * **Use a Plain Text Editor:** Copy the code into a simple text editor (like Notepad on Windows, TextEdit in Plain Text mode on Mac, or Nano/Vim on Linux) rather than a word processor or a complex IDE initially. This helps avoid hidden characters or unintended formatting.
+  * **Check Indentation:** Python is very strict about indentation. Ensure that spaces (typically 4 spaces) are used consistently for indentation, and that there are no mixed tabs and spaces, or incorrect indentation levels.
+  * **Save as `.py`:** Make sure the file is saved with the `.py` extension, e.g., `global_trade_insights_app.py`.
 
-1.  **Direct ROI/Cost Savings:** This is a tangible benefit. Prospects are constantly looking for ways to reduce costs. A simulator directly addresses this by allowing them to model different scenarios and see the financial impact of tariffs, duties, shipping, insurance, etc.
-2.  **Risk Mitigation:** Tariffs and trade policies are highly volatile. A simulator helps prospects understand the financial exposure to different trade agreements or geopolitical shifts.
-3.  **Strategic Decision Making:** It empowers them to make more informed decisions about:
-      * **Sourcing:** Should they source from Country A with lower unit costs but higher tariffs, or Country B with slightly higher unit costs but duty-free access?
-      * **Pricing:** How do tariffs impact their final product pricing and competitiveness?
-      * **Market Entry:** What are the true costs of entering a new market?
-      * **Supply Chain Design:** Where should they set up manufacturing or distribution centers?
-4.  **Operational Efficiency:** Understanding landed costs upfront reduces surprises, streamlines customs processes, and improves financial planning.
-5.  **Competitive Advantage:** Businesses that can accurately predict and manage landed costs are more agile and resilient.
+-----
 
-**How it Connects with AI/ML:**
-
-While a basic simulator might be purely rule-based, integrating AI/ML can elevate it significantly:
-
-1.  **Predictive Tariff Changes:** ML models could analyze historical trade policy changes, political rhetoric, and economic indicators to *predict* the likelihood or magnitude of future tariff adjustments. This adds a proactive, intelligent layer to the simulator.
-2.  **Optimized Route/Mode Selection:** AI could recommend the most cost-effective shipping routes and modes, factoring in tariffs, transit times, and potential disruptions (which could also be predicted by AI).
-3.  **Duty Drawback/Optimization:** ML could help identify opportunities for duty drawback or preferential trade agreement eligibility, maximizing savings.
-4.  **Anomaly Detection in Landed Costs:** Beyond just tariffs, AI could flag unusually high or low shipping costs, insurance premiums, or other charges that deviate from norms, indicating potential errors or opportunities for negotiation.
-5.  **Forecasting Total Landed Cost:** Instead of just calculating current costs, an ML model could forecast future landed costs based on predicted material prices, fuel costs, and potential tariff changes.
-
-**Implementation for Your Demo:**
-
-To add this to your existing Streamlit app, you would:
-
-1.  **Define Inputs:** Unit cost, quantity, freight cost, insurance cost, duties (tariff rate), customs fees, origin country, destination country, HS Code.
-2.  **Fetch Tariff Data (Challenging):** This is the trickiest part. Real-time, comprehensive tariff data is complex and often requires paid APIs (e.g., from providers like Descartes, Amber Road, etc.) or scraping official government customs websites. For a demo, you could:
-      * **Simplify:** Use a few hardcoded tariff rates based on HS Code and origin/destination.
-      * **Mock API:** Create a very simple mock function that returns a pre-defined tariff rate for specific inputs.
-      * **Direct User Input:** Have the user manually input the tariff rate for their chosen HS code and countries. This is the easiest for a quick demo.
-3.  **Calculation Logic:** `Landed Cost = (Unit Cost * Quantity) + Freight Cost + Insurance Cost + Duties + Other Fees`. `Duties = (Unit Cost * Quantity) * Tariff Rate`.
-4.  **Display Results:** Clearly show the breakdown of costs and the total landed cost.
-
-Let's think about how to add a *simplified* version of this to your existing structure to demonstrate the *concept* for prospects without diving into complex live tariff data integration. We can focus on the calculation and make the tariff rate an input.
-
-Adding this would make your demo much more powerful by directly addressing a key financial pain point for businesses involved in global trade.
-You're right, a landed cost and tariff simulator would be an excellent addition and make your demo much more tangible and valuable for prospects\!
-
-The UN Comtrade API primarily provides *trade statistics* (values and quantities of imports/exports), not *tariff rates* themselves. Getting real-time, comprehensive tariff data is quite complex, often requiring subscriptions to specialized data providers (like Flexport, Descartes, or directly from national customs agencies' APIs, which vary greatly).
-
-For a *demo* purposes, we can implement a **simplified tariff simulator** where the user directly inputs the tariff rate. This allows you to showcase the *calculation* and *impact* without needing a live, complex tariff API integration, which is outside the scope of a simple demo.
-
-Here's how we'll integrate a basic Landed Cost & Tariff Simulator into your existing "Global Trade Insights" app:
-
-1.  **New Section:** Add a dedicated Streamlit section for the simulator.
-2.  **User Inputs:** Allow users to input:
-      * Unit Cost of Goods
-      * Quantity
-      * Freight Cost
-      * Insurance Cost
-      * **Tariff Rate (as a percentage)** - This is the simplification.
-      * Other Fees (e.g., customs brokerage, port fees)
-      * Origin Country (for display only, not for live tariff lookup)
-      * Destination Country (for display only)
-      * HS Code (for display only, not for live tariff lookup)
-3.  **Calculation:** Perform the simple landed cost calculation:
-    `Landed Cost = (Unit Cost * Quantity) + Freight Cost + Insurance Cost + Duties + Other Fees`
-    `Duties = (Unit Cost * Quantity) * (Tariff Rate / 100)`
-4.  **Display:** Show the breakdown and total landed cost.
-
-This approach demonstrates the *concept* and the *impact* of tariffs and other costs, which is what your prospects really care about.
+Here is the complete and corrected code for `global_trade_insights_app.py`:
 
 ```python
 import streamlit as st
@@ -226,13 +172,18 @@ if custom_hs_code:
 
 # Time period selection
 current_year = datetime.datetime.now().year
-default_start_year = current_year - 15 # Default to last 15 years
-default_end_year = current_year - 2 # Comtrade data usually has a lag
+# Adjusting end year to be current_year - 2, as Comtrade data often has a lag
+default_end_year = current_year - 2 
+if default_end_year < 2000: # Ensure it doesn't go too low if current_year is low for testing
+    default_end_year = 2000 
+default_start_year = default_end_year - 15 
+if default_start_year < 1990: # Ensure start is not before 1990 for available data
+    default_start_year = 1990
 
 year_range = st.sidebar.slider(
     "Select Year Range:",
     min_value=1990,
-    max_value=current_year,
+    max_value=current_year, # Max should be current_year
     value=(default_start_year, default_end_year)
 )
 period_string = ",".join([str(y) for y in range(year_range[0], year_range[1] + 1)])
