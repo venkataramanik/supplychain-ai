@@ -1,17 +1,3 @@
-Okay, I understand you want me to regenerate the entire `global_trade_insights_app.py` file. I will provide the *exact same code* again.
-
-**Please pay extremely close attention to the following points when you copy and save this file:**
-
-  * **Copy ALL of the code:** Start from the very first `import streamlit as st` line and go all the way to the very last `"""` (triple quote) of the final markdown block.
-  * **Use a Plain Text Editor:** Copy the code into a simple text editor (like Notepad on Windows, TextEdit in Plain Text mode on Mac, or Nano/Vim on Linux) rather than a word processor or a complex IDE initially. This helps avoid hidden characters or unintended formatting.
-  * **Check Indentation:** Python is very strict about indentation. Ensure that spaces (typically 4 spaces) are used consistently for indentation, and that there are no mixed tabs and spaces, or incorrect indentation levels.
-  * **Save as `.py`:** Make sure the file is saved with the `.py` extension, e.g., `global_trade_insights_app.py`.
-
------
-
-Here is the complete and corrected code for `global_trade_insights_app.py`:
-
-```python
 import streamlit as st
 import numpy as np
 import pandas as pd
@@ -37,7 +23,7 @@ In today's interconnected world, understanding global trade flows and accurately
 -   **Calculating Landed Costs:** Understanding the *true* cost of goods, including tariffs, freight, and other fees, to inform pricing, sourcing, and profitability.
 
 This application demonstrates how we can fetch real-world trade data via the **UN Comtrade API** and apply basic ML techniques like **Anomaly Detection**, alongside a **Landed Cost & Tariff Simulator** to highlight interesting trade patterns and financial implications.
-""")
+""") # <--- CHECK THIS LINE CAREFULLY IN YOUR FILE
 
 st.subheader("💡 How We're Using AI/ML & Simulation for Insights:")
 st.markdown("""
@@ -51,7 +37,7 @@ st.markdown("""
     * This tool allows you to input various costs (unit cost, freight, insurance) and, crucially, a **tariff rate**.
     * It calculates the total "landed cost" – the true cost of bringing a product to its destination – which is vital for pricing decisions and profit margin analysis.
     * *While this demo uses a user-inputted tariff rate for simplicity, in a real-world AI solution, ML could potentially predict future tariff changes or optimize sourcing based on complex duty structures.*
-""")
+""") # <--- CHECK THIS LINE CAREFULLY IN YOUR FILE
 
 st.divider()
 
@@ -350,7 +336,7 @@ with col2:
     <p style="font-size: small; color: gray;">
     This simulator provides a simplified calculation of landed cost. In reality, duties can be more complex (e.g., specific duties, anti-dumping duties, preferential rates).
     </p>
-    """, unsafe_allow_html=True)
+    """, unsafe_allow_html=True) # <--- CHECK THIS LINE CAREFULLY IN YOUR FILE
 
 
 st.divider()
@@ -366,5 +352,4 @@ This application offers a glimpse into AI's potential in trade analysis and cost
 -   **Sentiment Analysis:** Analyzing news and social media to predict trade impacts from geopolitical events.
 
 By combining historical trade data with economic indicators, geopolitical events, and AI, businesses can build resilient and proactive global trade strategies, ensuring both profitability and compliance.
-""")
-```
+""") # <--- CHECK THIS LINE CAREFULLY IN YOUR FILE
