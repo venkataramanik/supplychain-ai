@@ -1,21 +1,3 @@
-Okay, let's simulate a simplified warehouse environment and demonstrate how Reinforcement Learning (specifically Q-Learning) can be applied to optimize **picking paths**.
-
-The core idea is to train an "agent" (our picker) to navigate a warehouse layout, pick up items, and learn the most efficient sequence and path to fulfill an order, minimizing steps taken.
-
------
-
-### **Warehouse Operations: Reinforcement Learning for Picking Path Optimization**
-
-**Context:**
-In warehouse operations, a significant portion of labor time and cost is associated with order picking – physically moving to retrieve items. **Inefficient warehouse labor** and **slow fulfillment** are common problems. By applying **Reinforcement Learning (RL)**, we can **train agents** to find **optimal picking routes** and material handling strategies, significantly **improving throughput** and reducing operational costs.
-
-This simulation demonstrates a basic "grid-world" warehouse where an agent learns the best path to collect multiple items in an order.
-
------
-
-### **`warehouse_picker_rl.py`** (Python Script)
-
-```python
 # warehouse_picker_rl.py
 
 import streamlit as st
@@ -356,4 +338,3 @@ This simulation is a simplified example. A real-world RL system for warehouse pi
 
 By moving towards such sophisticated AI systems, logistics and manufacturing businesses can achieve unprecedented levels of efficiency and automation in their warehouse operations.
 """)
-```
