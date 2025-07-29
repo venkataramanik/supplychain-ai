@@ -175,22 +175,26 @@ def load_embedding_model():
     model = SentenceTransformer('all-MiniLM-L6-v2')
     return model
 
-embedding_model = load_embedding_model()
+# Load the embedding model globally (this function is already cached)
+embedding_model_instance = load_embedding_model()
 
 
 # 2.3. Vector Store (FAISS Index)
 # Use st.cache_resource to cache the FAISS index creation
-# Fix: Pass only the hashable 'chunk_texts' (a list of strings) to the cached function
+# FIX: build_faiss_index no longer takes the model as a parameter.
+# It calls load_embedding_model() internally to get the cached model instance.
 @st.cache_resource
-def build_faiss_index(texts, model): # Renamed chunks to texts to clarify it's just the text part
+def build_faiss_index(texts): # Removed 'model' parameter
+    # Get the cached embedding model instance inside the function
+    model = load_embedding_model()
     embeddings = model.encode(texts, convert_to_tensor=False) # Get numpy array
     dimension = embeddings.shape[1]
     index = faiss.IndexFlatL2(dimension) # L2 distance for similarity search
     index.add(embeddings)
     return index
 
-# Pass the list of only the text content of chunks for hashing
-faiss_index = build_faiss_index([chunk["text"] for chunk in all_chunks], embedding_model)
+# Pass only the hashable list of text content for building the index
+faiss_index = build_faiss_index([chunk["text"] for chunk in all_chunks])
 
 
 # 2.4. LLM for Generation
@@ -215,8 +219,8 @@ def run_rag_pipeline(query, top_k=3):
     3. Constructs a prompt with retrieved context.
     4. Generates an answer using the LLM.
     """
-    # 1. Embed the query
-    query_embedding = embedding_model.encode([query], convert_to_tensor=False)
+    # Use the globally loaded (and cached) embedding model instance
+    query_embedding = embedding_model_instance.encode([query], convert_to_tensor=False)
 
     # 2. Retrieve top_k relevant chunks
     distances, indices = faiss_index.search(query_embedding, top_k)
