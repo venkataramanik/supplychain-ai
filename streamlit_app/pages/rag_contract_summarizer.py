@@ -2,7 +2,7 @@
 
 import streamlit as st
 import torch
-from transformers import AutoTokenizer, AutoModelForSeq2SeqLM # Changed from AutoModelForCausalLM
+from transformers import AutoTokenizer, AutoModelForSeq2SeqLM
 from sentence_transformers import SentenceTransformer
 import faiss
 import numpy as np
@@ -46,6 +46,8 @@ st.subheader("🛠️ Tech Stack (Pilot)")
 st.markdown("""
 - **Python:** For core RAG pipeline orchestration, data processing, and integration logic.
 - **`transformers`:** To load and manage the Large Language Model (LLM) for generation.
+    - **Note on LLM:** For this pilot, we use `google/flan-t5-small`. This model was chosen for its **small size** (80 million parameters), which allows it to run efficiently on **CPU-only environments** and be easily distributed for demonstration.
+    - **Limitations:** While capable for simple tasks, its compact size means it has **limited reasoning capabilities** and may occasionally produce less nuanced or detailed answers compared to much larger, more powerful LLMs. It is suitable for proof-of-concept but would be scaled up for production use.
 - **`sentence-transformers`:** For generating high-quality semantic embeddings (numerical representations) of text.
 - **`faiss-cpu`:** (Facebook AI Similarity Search) As a lightweight, in-memory vector database for fast similarity search.
 - **`torch`:** The underlying deep learning framework powering the models.
@@ -199,10 +201,10 @@ faiss_index = build_faiss_index([chunk["text"] for chunk in all_chunks])
 # Use st.cache_resource to cache the LLM loading
 @st.cache_resource
 def load_llm():
-    # Using a small T5 model for text generation, suitable for CPU/limited GPU
+    # Model name is "google/flan-t5-small" as discussed and used
     model_name = "google/flan-t5-small"
     tokenizer = AutoTokenizer.from_pretrained(model_name)
-    # FIX: Changed from AutoModelForCausalLM to AutoModelForSeq2SeqLM for T5 models
+    # Corrected: AutoModelForSeq2SeqLM for T5 models
     model = AutoModelForSeq2SeqLM.from_pretrained(model_name)
     return tokenizer, model
 
@@ -227,15 +229,15 @@ def run_rag_pipeline(query, top_k=3):
     retrieved_chunks = [all_chunks[i] for i in indices[0]]
 
     # 3. Construct prompt for LLM
-    context = "\n\n".join([f"Document: {chunk['doc_title']}\nContent: {chunk['text']}" for chunk in retrieved_chunks])
+    # Make the context clear for the LLM
+    context_str = "\n\n".join([f"Document: {chunk['doc_title']}\nContent: {chunk['text']}" for chunk in retrieved_chunks])
 
     prompt = f"""
-    You are a helpful assistant specialized in supply chain contracts.
-    Answer the following question based ONLY on the provided context.
-    If the answer cannot be found in the context, state that you don't have enough information.
+    Based on the following contract snippets, answer the question accurately.
+    If the answer is not present in the snippets, clearly state that the information is not available.
 
-    Context:
-    {context}
+    Contract Snippets:
+    {context_str}
 
     Question: {query}
 
@@ -249,12 +251,18 @@ def run_rag_pipeline(query, top_k=3):
     with torch.no_grad():
         output_ids = llm_model.generate(
             input_ids,
-            max_new_tokens=200,
+            max_new_tokens=250, # Increased max_new_tokens for potentially longer answers
             num_beams=5,
             early_stopping=True
         )
 
     answer = llm_tokenizer.decode(output_ids[0], skip_special_tokens=True)
+
+    # Post-processing to ensure clear "unanswerable" output if the model provides generic phrasing
+    unanswerable_keywords = ["I do not have enough information", "not found", "not available", "cannot be determined", "unanswerable"]
+    if any(keyword in answer.lower() for keyword in unanswerable_keywords) or len(answer.strip()) < 10:
+        answer = "The information required to answer this question is not explicitly available in the provided contract snippets."
+
 
     return answer, retrieved_chunks
 
