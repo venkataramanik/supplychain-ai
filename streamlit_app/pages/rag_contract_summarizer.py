@@ -1,40 +1,5 @@
-The error `streamlit.runtime.caching.cache_errors.UnhashableParamError` with a traceback pointing to `build_faiss_index(all_chunks, embedding_model)` indicates that one of the parameters being passed to the `build_faiss_index` function (which is decorated with `@st.cache_resource`) is **unhashable**.
+# rag_contract_summarizer.py
 
-Streamlit's caching mechanism works by creating a hash of the function's input parameters. If the parameters are the same in a subsequent run, Streamlit uses the cached result instead of re-running the function. For this hashing to work, all parameters must be "hashable" (like numbers, strings, tuples, frozen sets, etc.).
-
-In your case, the `all_chunks` list, which contains dictionaries, is likely the culprit. Dictionaries, by default, are not hashable. Even if the dictionaries themselves contain hashable elements, the list containing them is mutable, which also makes it unhashable by default in Streamlit's caching.
-
-Here are a few ways to fix this, along with the reasoning:
-
-1.  **Remove `@st.cache_resource` from `build_faiss_index`:**
-
-      * **Pros:** Simplest fix, no changes to data structure.
-      * **Cons:** The FAISS index will be rebuilt *every time* the script reruns (e.g., on every user interaction), which can be slow, especially with more chunks. This defeats the purpose of caching the index.
-      * **Recommendation:** Not ideal for performance, but a quick way to diagnose.
-
-2.  **Make `all_chunks` hashable (e.g., convert to a tuple of frozensets/tuples):**
-
-      * **Pros:** Keeps the caching mechanism, preserving performance.
-      * **Cons:** Can be cumbersome to convert complex data structures like a list of dictionaries into fully hashable formats, and might make the data less convenient to work with afterwards.
-
-3.  **Pass only the raw text data to `build_faiss_index` and handle the chunk mapping separately:**
-
-      * **Pros:** Good balance. The raw text (a list of strings) is hashable, allowing `build_faiss_index` to be cached efficiently. The `all_chunks` structure is still available globally for mapping back to titles, IDs, etc.
-      * **Cons:** Requires a slight adjustment to how you retrieve the original chunk information.
-      * **Recommendation:** This is often the cleanest approach for caching functions that process lists of complex objects.
-
-4.  **Use Streamlit's `hash_funcs` parameter in `@st.cache_resource`:**
-
-      * **Pros:** Allows you to define a custom hashing function for specific unhashable types.
-      * **Cons:** Requires writing a custom hashing function, which can be tricky for complex nested structures.
-
-Given your specific use case, option 3 (passing only raw text to the `build_faiss_index` for hashing) is the most robust and practical.
-
-Let's implement **Option 3**. We'll adjust `build_faiss_index` to only take `chunk_texts` directly, and `all_chunks` will remain a global list that's *not* hashed by `build_faiss_index`.
-
------
-
-```python
 import streamlit as st
 import torch
 from transformers import AutoTokenizer, AutoModelForCausalLM
@@ -215,9 +180,9 @@ embedding_model = load_embedding_model()
 
 # 2.3. Vector Store (FAISS Index)
 # Use st.cache_resource to cache the FAISS index creation
-# Fix: Pass only the hashable 'chunk_texts' to the cached function
+# Fix: Pass only the hashable 'chunk_texts' (a list of strings) to the cached function
 @st.cache_resource
-def build_faiss_index(texts, model): # Renamed chunks to texts
+def build_faiss_index(texts, model): # Renamed chunks to texts to clarify it's just the text part
     embeddings = model.encode(texts, convert_to_tensor=False) # Get numpy array
     dimension = embeddings.shape[1]
     index = faiss.IndexFlatL2(dimension) # L2 distance for similarity search
@@ -255,7 +220,8 @@ def run_rag_pipeline(query, top_k=3):
 
     # 2. Retrieve top_k relevant chunks
     distances, indices = faiss_index.search(query_embedding, top_k)
-    retrieved_chunks = [all_chunks[i] for i in indices[0]] # Use all_chunks here to get original dicts
+    # Use all_chunks here to get the original dictionary (with doc_id, doc_title, text)
+    retrieved_chunks = [all_chunks[i] for i in indices[0]]
 
     # 3. Construct prompt for LLM
     context = "\n\n".join([f"Document: {chunk['doc_title']}\nContent: {chunk['text']}" for chunk in retrieved_chunks])
@@ -359,4 +325,3 @@ st.markdown("""
 st.markdown("""
 By leveraging high-performance computing and specialized AI software, enterprises can build highly accurate, scalable, and responsive Generative AI solutions that truly solve complex supply chain problems.
 """)
-```
